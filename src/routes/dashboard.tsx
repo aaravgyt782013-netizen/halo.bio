@@ -529,10 +529,10 @@ function Dashboard() {
         </div>
       </div>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-5 py-6 lg:grid-cols-[1fr_360px]">
+      <main className="mx-auto grid max-w-6xl w-full overflow-hidden gap-6 px-4 py-6 lg:grid-cols-[1fr_360px]">
         {/* Editor panel */}
         <section
-          className={`glass-panel p-5 sm:p-7 shadow-lift ${
+          className={`glass-panel p-4 sm:p-7 shadow-lift w-full max-w-full overflow-hidden ${
             mobileView === "preview" ? "hidden lg:block" : "block"
           }`}
         >
@@ -769,11 +769,11 @@ function Dashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 min-w-0 flex-1">
                     <input
                       type="file"
                       accept="image/*"
-                      className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer"
+                      className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file)
@@ -855,7 +855,7 @@ function Dashboard() {
                             ? "video/mp4,video/webm"
                             : "image/*"
                         }
-                        className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
+                        className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file)
@@ -1007,7 +1007,7 @@ function Dashboard() {
                   <input
                     type="file"
                     accept="audio/*"
-                    className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
+                    className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file)

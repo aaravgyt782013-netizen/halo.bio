@@ -1,13 +1,20 @@
-
 import { generateSessionToken, hashPasswordServer } from "./crypto";
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, deleteDoc, updateDoc } from 'firebase/firestore';
-
-
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  deleteDoc,
+  updateDoc,
+} from "firebase/firestore";
 
 // @ts-ignore
 import firebaseConfig from "../../firebase-applet-config.json";
-
 
 const app = initializeApp(firebaseConfig || {});
 const db = getFirestore(app, firebaseConfig?.firestoreDatabaseId);
@@ -64,7 +71,8 @@ function sanitizeSafeUrl(url: string | null | undefined): string {
   if (!url) return "";
   const trimmed = url.trim();
   if (/^(javascript|vbscript|file):/i.test(trimmed)) return "";
-  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/")) return "";
+  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/"))
+    return "";
   return trimmed;
 }
 
@@ -75,20 +83,23 @@ const viewed_ips: Record<string, string[]> = {};
 
 export const serverStorage = {
   async getUserByEmail(email: string): Promise<StoredUser | null> {
-    const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()));
+    const q = query(
+      collection(db, "users"),
+      where("email", "==", email.toLowerCase().trim()),
+    );
     const snap = await getDocs(q);
     if (snap.empty) return null;
     return snap.docs[0].data() as StoredUser;
   },
 
   async getUserById(id: string): Promise<StoredUser | null> {
-    const snap = await getDoc(doc(db, 'users', id));
+    const snap = await getDoc(doc(db, "users", id));
     if (!snap.exists()) return null;
     return snap.data() as StoredUser;
   },
 
   async updateUserPassword(id: string, hash: string): Promise<boolean> {
-    const ref = doc(db, 'users', id);
+    const ref = doc(db, "users", id);
     const snap = await getDoc(ref);
     if (!snap.exists()) return false;
     await updateDoc(ref, { password: hash });
@@ -96,7 +107,7 @@ export const serverStorage = {
   },
 
   async updateUserRole(id: string, role: "admin" | "user"): Promise<boolean> {
-    const ref = doc(db, 'users', id);
+    const ref = doc(db, "users", id);
     const snap = await getDoc(ref);
     if (!snap.exists()) return false;
     await updateDoc(ref, { role });
@@ -104,41 +115,67 @@ export const serverStorage = {
   },
 
   async getSession(token: string): Promise<ServerSession | null> {
-    const snap = await getDoc(doc(db, 'sessions', token));
+    const snap = await getDoc(doc(db, "sessions", token));
     if (!snap.exists()) return null;
     return snap.data() as ServerSession;
   },
 
-  async createSession(userId: string, role: "admin" | "user"): Promise<ServerSession> {
+  async createSession(
+    userId: string,
+    role: "admin" | "user",
+  ): Promise<ServerSession> {
     const token = generateSessionToken();
     const session: ServerSession = { token, user_id: userId, role };
-    await setDoc(doc(db, 'sessions', token), session);
+    await setDoc(doc(db, "sessions", token), session);
     return session;
   },
 
   async revokeSession(token: string): Promise<void> {
-    await deleteDoc(doc(db, 'sessions', token));
+    await deleteDoc(doc(db, "sessions", token));
   },
 
-  async isUsernameAvailable(username: string, excludeUserId?: string): Promise<{ available: boolean; reason?: string }> {
+  async isUsernameAvailable(
+    username: string,
+    excludeUserId?: string,
+  ): Promise<{ available: boolean; reason?: string }> {
     const clean = username.toLowerCase().trim();
-    if (!clean || clean.length < 3 || clean.length > 20) return { available: false, reason: "invalid_length" };
-    if (!/^[a-z0-9_.]+$/.test(clean)) return { available: false, reason: "invalid_chars" };
-    
-    const reserved = ["admin", "api", "login", "signup", "logout", "help", "support", "terms", "privacy"];
-    if (reserved.includes(clean)) return { available: false, reason: "reserved" };
+    if (!clean || clean.length < 3 || clean.length > 20)
+      return { available: false, reason: "invalid_length" };
+    if (!/^[a-z0-9_.]+$/.test(clean))
+      return { available: false, reason: "invalid_chars" };
 
-    const q = query(collection(db, 'profiles'), where('username', '==', clean));
+    const reserved = [
+      "admin",
+      "api",
+      "login",
+      "signup",
+      "logout",
+      "help",
+      "support",
+      "terms",
+      "privacy",
+    ];
+    if (reserved.includes(clean))
+      return { available: false, reason: "reserved" };
+
+    const q = query(collection(db, "profiles"), where("username", "==", clean));
     const snap = await getDocs(q);
     if (snap.empty) return { available: true };
-    if (excludeUserId && snap.docs[0].data().id === excludeUserId) return { available: true };
+    if (excludeUserId && snap.docs[0].data().id === excludeUserId)
+      return { available: true };
     return { available: false, reason: "taken" };
   },
 
-  async createUser(params: { email: string; passwordHash: string; full_name: string; role?: "admin" | "user" }): Promise<{ user: StoredUser; profile: Profile }> {
+  async createUser(params: {
+    email: string;
+    passwordHash: string;
+    full_name: string;
+    role?: "admin" | "user";
+  }): Promise<{ user: StoredUser; profile: Profile }> {
     const cleanEmail = params.email.toLowerCase().trim();
     const userId = "usr-" + Math.random().toString(36).substring(2, 10);
-    const role = params.role || (cleanEmail === "staff@gmail.com" ? "admin" : "user");
+    const role =
+      params.role || (cleanEmail === "staff@gmail.com" ? "admin" : "user");
     const now = new Date().toISOString();
 
     const user: StoredUser = {
@@ -172,220 +209,321 @@ export const serverStorage = {
       created_at: now,
     };
 
-    await setDoc(doc(db, 'users', userId), user);
-    await setDoc(doc(db, 'profiles', userId), profile);
+    await setDoc(doc(db, "users", userId), user);
+    await setDoc(doc(db, "profiles", userId), profile);
     return { user, profile };
   },
 
-  async claimUsername(userId: string, username: string): Promise<{ success: boolean; error?: string; username?: string }> {
+  async claimUsername(
+    userId: string,
+    username: string,
+  ): Promise<{ success: boolean; error?: string; username?: string }> {
     const clean = username.toLowerCase().trim();
     const avail = await this.isUsernameAvailable(clean, userId);
     if (!avail.available) {
-      return { success: false, error: avail.reason === "taken" ? "Username taken" : "Invalid username" };
+      return {
+        success: false,
+        error: avail.reason === "taken" ? "Username taken" : "Invalid username",
+      };
     }
-    
-    const snap = await getDoc(doc(db, 'profiles', userId));
+
+    const snap = await getDoc(doc(db, "profiles", userId));
     if (!snap.exists()) return { success: false, error: "Profile not found" };
-    
+
     const profile = snap.data() as Profile;
     profile.username = clean;
-    await updateDoc(doc(db, 'profiles', userId), { username: clean });
+    await updateDoc(doc(db, "profiles", userId), { username: clean });
     return { success: true, username: clean };
   },
 
-  async getProfile(username: string): Promise<{ profile: Profile; links: BioLink[] } | null> {
+  async getProfile(
+    username: string,
+  ): Promise<{ profile: Profile; links: BioLink[] } | null> {
     const clean = username.toLowerCase().trim();
-    const q = query(collection(db, 'profiles'), where('username', '==', clean));
+    const q = query(collection(db, "profiles"), where("username", "==", clean));
     const snap = await getDocs(q);
     if (snap.empty) return null;
-    
+
     const profile = snap.docs[0].data() as Profile;
-    const lq = query(collection(db, 'links'), where('user_id', '==', profile.id));
+    const lq = query(
+      collection(db, "links"),
+      where("user_id", "==", profile.id),
+    );
     const lsnap = await getDocs(lq);
-    const links = lsnap.docs.map(d => d.data() as BioLink).sort((a, b) => a.position - b.position);
-    
+    const links = lsnap.docs
+      .map((d) => d.data() as BioLink)
+      .sort((a, b) => a.position - b.position);
+
     return { profile, links };
   },
 
-  async syncUser(userId: string, isAdmin: boolean, payload: { profiles?: Profile[]; links?: BioLink[] }): Promise<{ success: boolean; error?: string }> {
+  async syncUser(
+    userId: string,
+    isAdmin: boolean,
+    payload: { profiles?: Profile[]; links?: BioLink[] },
+  ): Promise<{ success: boolean; error?: string }> {
     if (payload.profiles && Array.isArray(payload.profiles)) {
       for (const incoming of payload.profiles) {
         if (!isAdmin && incoming.id !== userId) continue;
-        
-        const snap = await getDoc(doc(db, 'profiles', incoming.id));
+
+        const snap = await getDoc(doc(db, "profiles", incoming.id));
         if (snap.exists()) {
           const existing = snap.data() as Profile;
           let safeUsername = existing.username;
-          if (incoming.username && incoming.username.toLowerCase() !== existing.username?.toLowerCase()) {
-            const avail = await this.isUsernameAvailable(incoming.username, existing.id);
-            if (avail.available) safeUsername = incoming.username.toLowerCase().trim();
+          if (
+            incoming.username &&
+            incoming.username.toLowerCase() !== existing.username?.toLowerCase()
+          ) {
+            const avail = await this.isUsernameAvailable(
+              incoming.username,
+              existing.id,
+            );
+            if (avail.available)
+              safeUsername = incoming.username.toLowerCase().trim();
           }
-          
+
           const updated: Profile = {
             ...existing,
-            display_name: incoming.display_name ? String(incoming.display_name).slice(0, 100) : existing.display_name,
-            bio: incoming.bio !== undefined ? String(incoming.bio || "").slice(0, 500) : existing.bio,
+            display_name: incoming.display_name
+              ? String(incoming.display_name).slice(0, 100)
+              : existing.display_name,
+            bio:
+              incoming.bio !== undefined
+                ? String(incoming.bio || "").slice(0, 500)
+                : existing.bio,
             avatar_url: sanitizeSafeUrl(incoming.avatar_url) || null,
-            background_type: ["color", "image", "video"].includes(incoming.background_type) ? incoming.background_type : existing.background_type,
-            background_value: sanitizeSafeUrl(incoming.background_value) || existing.background_value,
-            card_opacity: typeof incoming.card_opacity === "number" ? Math.min(1, Math.max(0, incoming.card_opacity)) : existing.card_opacity,
-            card_radius: typeof incoming.card_radius === "number" ? Math.min(60, Math.max(0, incoming.card_radius)) : existing.card_radius,
-            card_blur: typeof incoming.card_blur === "number" ? Math.min(60, Math.max(0, incoming.card_blur)) : existing.card_blur,
-            accent_color: incoming.accent_color && /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color) ? incoming.accent_color : existing.accent_color,
+            background_type: ["color", "image", "video"].includes(
+              incoming.background_type,
+            )
+              ? incoming.background_type
+              : existing.background_type,
+            background_value:
+              sanitizeSafeUrl(incoming.background_value) ||
+              existing.background_value,
+            card_opacity:
+              typeof incoming.card_opacity === "number"
+                ? Math.min(1, Math.max(0, incoming.card_opacity))
+                : existing.card_opacity,
+            card_radius:
+              typeof incoming.card_radius === "number"
+                ? Math.min(60, Math.max(0, incoming.card_radius))
+                : existing.card_radius,
+            card_blur:
+              typeof incoming.card_blur === "number"
+                ? Math.min(60, Math.max(0, incoming.card_blur))
+                : existing.card_blur,
+            accent_color:
+              incoming.accent_color &&
+              /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color)
+                ? incoming.accent_color
+                : existing.accent_color,
             music_url: sanitizeSafeUrl(incoming.music_url) || null,
             music_enabled: Boolean(incoming.music_enabled),
-            enter_text: incoming.enter_text ? String(incoming.enter_text).slice(0, 50) : existing.enter_text,
-            is_premium: isAdmin && typeof incoming.is_premium === "boolean" ? incoming.is_premium : existing.is_premium,
-            is_banned: isAdmin && typeof incoming.is_banned === "boolean" ? incoming.is_banned : existing.is_banned,
-            is_flagged: isAdmin && typeof incoming.is_flagged === "boolean" ? incoming.is_flagged : existing.is_flagged,
+            enter_text: incoming.enter_text
+              ? String(incoming.enter_text).slice(0, 50)
+              : existing.enter_text,
+            is_premium:
+              isAdmin && typeof incoming.is_premium === "boolean"
+                ? incoming.is_premium
+                : existing.is_premium,
+            is_banned:
+              isAdmin && typeof incoming.is_banned === "boolean"
+                ? incoming.is_banned
+                : existing.is_banned,
+            is_flagged:
+              isAdmin && typeof incoming.is_flagged === "boolean"
+                ? incoming.is_flagged
+                : existing.is_flagged,
             views: existing.views,
             username: safeUsername,
             updated_at: new Date().toISOString(),
           };
-          await setDoc(doc(db, 'profiles', incoming.id), updated);
+          await setDoc(doc(db, "profiles", incoming.id), updated);
         }
       }
     }
-    
+
     if (payload.links && Array.isArray(payload.links)) {
       const allowedIncoming = payload.links
-        .filter(l => (isAdmin ? true : l.user_id === userId))
-        .map(l => ({
+        .filter((l) => (isAdmin ? true : l.user_id === userId))
+        .map((l) => ({
           ...l,
           title: String(l.title || "Link").slice(0, 100),
           url: sanitizeSafeUrl(l.url) || "https://",
           clicks: typeof l.clicks === "number" ? l.clicks : 0,
         }));
-      
-      const q = query(collection(db, 'links'), where('user_id', '==', userId));
+
+      const q = query(collection(db, "links"), where("user_id", "==", userId));
       const existingSnaps = await getDocs(q);
-      
+
       // Delete old links
       for (const d of existingSnaps.docs) await deleteDoc(d.ref);
-      
+
       // Set new links
       for (const l of allowedIncoming) {
         if (!l.id) l.id = "lnk-" + Math.random().toString(36).substring(2, 10);
-        await setDoc(doc(db, 'links', l.id), l);
+        await setDoc(doc(db, "links", l.id), l);
       }
     }
-    
+
     return { success: true };
   },
 
-  async recordView(username: string, ip: string): Promise<{ success: boolean; counted: boolean; views: number; reason?: string }> {
+  async recordView(
+    username: string,
+    ip: string,
+  ): Promise<{
+    success: boolean;
+    counted: boolean;
+    views: number;
+    reason?: string;
+  }> {
     const clean = username.toLowerCase().trim();
-    const q = query(collection(db, 'profiles'), where('username', '==', clean));
+    const q = query(collection(db, "profiles"), where("username", "==", clean));
     const snap = await getDocs(q);
-    if (snap.empty) return { success: false, counted: false, views: 0, reason: "profile_not_found" };
-    
+    if (snap.empty)
+      return {
+        success: false,
+        counted: false,
+        views: 0,
+        reason: "profile_not_found",
+      };
+
     const profile = snap.docs[0].data() as Profile;
     const cleanIp = (ip || "127.0.0.1").trim();
     const cooldownKey = `${cleanIp}:${clean}`;
     const now = Date.now();
     const lastView = view_cooldowns[cooldownKey] || 0;
-    
+
     if (now - lastView < 12 * 60 * 60 * 1000) {
-      return { success: true, counted: false, views: profile.views || 0, reason: "cooldown_active" };
+      return {
+        success: true,
+        counted: false,
+        views: profile.views || 0,
+        reason: "cooldown_active",
+      };
     }
-    
+
     const vl = viewed_ips[clean] || [];
     if (vl.includes(cleanIp)) {
       view_cooldowns[cooldownKey] = now;
-      return { success: true, counted: false, views: profile.views || 0, reason: "duplicate_ip" };
+      return {
+        success: true,
+        counted: false,
+        views: profile.views || 0,
+        reason: "duplicate_ip",
+      };
     }
-    
+
     vl.push(cleanIp);
     viewed_ips[clean] = vl;
     view_cooldowns[cooldownKey] = now;
-    
+
     const newViews = (profile.views || 0) + 1;
     await updateDoc(snap.docs[0].ref, { views: newViews });
-    
+
     return { success: true, counted: true, views: newViews };
   },
 
-  async recordClick(linkId: string, ip: string): Promise<{ success: boolean; clicks: number; counted: boolean }> {
-    const snap = await getDoc(doc(db, 'links', linkId));
+  async recordClick(
+    linkId: string,
+    ip: string,
+  ): Promise<{ success: boolean; clicks: number; counted: boolean }> {
+    const snap = await getDoc(doc(db, "links", linkId));
     if (!snap.exists()) return { success: false, clicks: 0, counted: false };
-    
+
     const link = snap.data() as BioLink;
     const cleanIp = (ip || "127.0.0.1").trim();
     const cooldownKey = `${cleanIp}:${linkId}`;
     const now = Date.now();
     const lastClick = click_cooldowns[cooldownKey] || 0;
-    
+
     if (now - lastClick < 10000) {
       return { success: true, clicks: link.clicks || 0, counted: false };
     }
-    
+
     click_cooldowns[cooldownKey] = now;
     const newClicks = (link.clicks || 0) + 1;
     await updateDoc(snap.ref, { clicks: newClicks });
-    
+
     return { success: true, clicks: newClicks, counted: true };
   },
 
   async getStats(): Promise<any> {
-    const pSnap = await getDocs(collection(db, 'profiles'));
-    const lSnap = await getDocs(collection(db, 'links'));
-    
-    const profiles = pSnap.docs.map(d => d.data() as Profile);
-    const links = lSnap.docs.map(d => d.data() as BioLink);
-    
+    const pSnap = await getDocs(collection(db, "profiles"));
+    const lSnap = await getDocs(collection(db, "links"));
+
+    const profiles = pSnap.docs.map((d) => d.data() as Profile);
+    const links = lSnap.docs.map((d) => d.data() as BioLink);
+
     return {
       total_profiles: profiles.length,
-      active_profiles: profiles.filter(p => p.username && !p.is_banned).length,
+      active_profiles: profiles.filter((p) => p.username && !p.is_banned)
+        .length,
       total_views: profiles.reduce((a, b) => a + (b.views || 0), 0),
       total_clicks: links.reduce((a, b) => a + (b.clicks || 0), 0),
       total_links: links.length,
     };
   },
-  
-  async getCallerStore(userId: string, isAdmin: boolean): Promise<{ myProfile: Profile | null; myLinks: BioLink[]; publicProfiles: Profile[] }> {
+
+  async getCallerStore(
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<{
+    myProfile: Profile | null;
+    myLinks: BioLink[];
+    publicProfiles: Profile[];
+  }> {
     let myProfile: Profile | null = null;
     let myLinks: BioLink[] = [];
-    
-    const snap = await getDoc(doc(db, 'profiles', userId));
+
+    const snap = await getDoc(doc(db, "profiles", userId));
     if (snap.exists()) myProfile = snap.data() as Profile;
-    
-    const lq = query(collection(db, 'links'), where('user_id', '==', userId));
+
+    const lq = query(collection(db, "links"), where("user_id", "==", userId));
     const lSnap = await getDocs(lq);
-    myLinks = lSnap.docs.map(d => d.data() as BioLink).sort((a, b) => a.position - b.position);
-    
-    const pubSnap = await getDocs(collection(db, 'profiles'));
-    const publicProfiles = pubSnap.docs.map(d => d.data() as Profile).filter(p => p.username && !p.is_banned);
-    
+    myLinks = lSnap.docs
+      .map((d) => d.data() as BioLink)
+      .sort((a, b) => a.position - b.position);
+
+    const pubSnap = await getDocs(collection(db, "profiles"));
+    const publicProfiles = pubSnap.docs
+      .map((d) => d.data() as Profile)
+      .filter((p) => p.username && !p.is_banned);
+
     return { myProfile, myLinks, publicProfiles };
   },
 
   async getAllProfilesAdmin(includeBanned: boolean): Promise<Profile[]> {
-    const snap = await getDocs(collection(db, 'profiles'));
-    let profiles = snap.docs.map(d => d.data() as Profile);
-    if (!includeBanned) profiles = profiles.filter(p => !p.is_banned);
+    const snap = await getDocs(collection(db, "profiles"));
+    let profiles = snap.docs.map((d) => d.data() as Profile);
+    if (!includeBanned) profiles = profiles.filter((p) => !p.is_banned);
     return profiles;
   },
 
-  async adminMutateProfile(userId: string, updates: Partial<Profile>): Promise<{ success: boolean }> {
-    const snap = await getDoc(doc(db, 'profiles', userId));
+  async adminMutateProfile(
+    userId: string,
+    updates: Partial<Profile>,
+  ): Promise<{ success: boolean }> {
+    const snap = await getDoc(doc(db, "profiles", userId));
     if (!snap.exists()) return { success: false };
     await updateDoc(snap.ref, updates);
     return { success: true };
   },
 
   async adminDeleteProfile(userId: string): Promise<{ success: boolean }> {
-    const snap = await getDoc(doc(db, 'profiles', userId));
+    const snap = await getDoc(doc(db, "profiles", userId));
     if (!snap.exists()) return { success: false };
-    
+
     // delete profile
     await deleteDoc(snap.ref);
     // delete user
-    await deleteDoc(doc(db, 'users', userId));
+    await deleteDoc(doc(db, "users", userId));
     // delete links
-    const lq = query(collection(db, 'links'), where('user_id', '==', userId));
+    const lq = query(collection(db, "links"), where("user_id", "==", userId));
     const lSnap = await getDocs(lq);
     for (const d of lSnap.docs) await deleteDoc(d.ref);
-    
+
     return { success: true };
-  }
+  },
 };

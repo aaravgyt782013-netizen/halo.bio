@@ -558,7 +558,7 @@ function checkRateLimit(key, limit, windowMs) {
 }
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./server-BmtIwE4h.mjs").then((n) => n.t).then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./server-BNn8p_Wj.mjs").then((n) => n.t).then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 function jsonResponse(data, status = 200, extraHeaders = {}) {

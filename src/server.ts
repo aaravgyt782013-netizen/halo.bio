@@ -22,8 +22,8 @@ async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = // @ts-ignore
       import("@tanstack/react-start/server-entry").then(
-      (m) => (m.default ?? m) as ServerEntry,
-    );
+        (m) => (m.default ?? m) as ServerEntry,
+      );
   }
   return serverEntryPromise;
 }
@@ -74,7 +74,9 @@ function parseCookies(cookieHeader: string | null): Record<string, string> {
   return cookies;
 }
 
-export async function getSessionFromRequest(request: Request): Promise<{ token: string; userId: string; role: "admin" | "user"; } | null> {
+export async function getSessionFromRequest(
+  request: Request,
+): Promise<{ token: string; userId: string; role: "admin" | "user" } | null> {
   const cookieHeader = request.headers.get("cookie");
   const cookies = parseCookies(cookieHeader);
   const token = cookies["halo_session"];
@@ -260,7 +262,10 @@ export default {
               full_name: fullName,
             });
 
-            const session = await serverStorage.createSession(user.id, user.role);
+            const session = await serverStorage.createSession(
+              user.id,
+              user.role,
+            );
             const cookie = createSessionCookie(session.token, request);
 
             return jsonResponse(
@@ -281,12 +286,12 @@ export default {
           }
         }
 
-        
         if (url.pathname === "/api/auth/google" && method === "POST") {
           try {
             const body = await request.json();
             const idToken = body.idToken;
-            if (!idToken) return jsonResponse({ error: "No ID token provided" }, 400);
+            if (!idToken)
+              return jsonResponse({ error: "No ID token provided" }, 400);
 
             let apiKey = "";
             try {
@@ -295,16 +300,27 @@ export default {
               console.warn("Could not load API key for Google verification", e);
             }
 
-            if (!apiKey) return jsonResponse({ error: "Firebase config not found on server" }, 500);
+            if (!apiKey)
+              return jsonResponse(
+                { error: "Firebase config not found on server" },
+                500,
+              );
 
-            const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idToken }),
-            });
+            const verifyRes = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken }),
+              },
+            );
 
             const verifyData = await verifyRes.json();
-            if (!verifyRes.ok || !verifyData.users || verifyData.users.length === 0) {
+            if (
+              !verifyRes.ok ||
+              !verifyData.users ||
+              verifyData.users.length === 0
+            ) {
               return jsonResponse({ error: "Invalid Google token" }, 401);
             }
 
@@ -314,15 +330,18 @@ export default {
 
             let user = await serverStorage.getUserByEmail(email);
             if (!user) {
-               const { user: newUser } = await serverStorage.createUser({
-                 email,
-                 passwordHash: "oauth:google:" + googleUser.localId,
-                 full_name: fullName
-               });
-               user = newUser;
+              const { user: newUser } = await serverStorage.createUser({
+                email,
+                passwordHash: "oauth:google:" + googleUser.localId,
+                full_name: fullName,
+              });
+              user = newUser;
             }
 
-            const session = await serverStorage.createSession(user.id, user.role);
+            const session = await serverStorage.createSession(
+              user.id,
+              user.role,
+            );
             const cookie = createSessionCookie(session.token, request);
 
             return jsonResponse(
@@ -333,10 +352,10 @@ export default {
                   email: user.email,
                   full_name: user.full_name,
                   role: user.role,
-                }
+                },
               },
               200,
-              { "set-cookie": cookie }
+              { "set-cookie": cookie },
             );
           } catch (err) {
             console.error(err);
@@ -390,7 +409,10 @@ export default {
               );
             }
 
-            const session = await serverStorage.createSession(user.id, user.role);
+            const session = await serverStorage.createSession(
+              user.id,
+              user.role,
+            );
             const cookie = createSessionCookie(session.token, request);
 
             return jsonResponse(
@@ -588,7 +610,10 @@ export default {
         if (url.pathname === "/api/username-available" && method === "GET") {
           const username = url.searchParams.get("username") || "";
           const userId = url.searchParams.get("userId") || undefined;
-          const result = await serverStorage.isUsernameAvailable(username, userId);
+          const result = await serverStorage.isUsernameAvailable(
+            username,
+            userId,
+          );
           return jsonResponse(result);
         }
 

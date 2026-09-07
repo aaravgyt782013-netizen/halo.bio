@@ -237,12 +237,13 @@ function getStore(): StoreData {
 function syncToServer(currentUserId?: string) {
   if (typeof window === "undefined" || typeof fetch === "undefined") return;
 
-  const uid = currentUserId || memoryStore.session?.user?.id;
+  const store = getStore();
+  const uid = currentUserId || store.session?.user?.id;
   if (!uid) return;
 
   // Filter to caller's own records to prevent tampering
-  const myProfiles = memoryStore.profiles.filter((p) => p.id === uid);
-  const myLinks = memoryStore.links.filter((l) => l.user_id === uid);
+  const myProfiles = store.profiles.filter((p) => p.id === uid);
+  const myLinks = store.links.filter((l) => l.user_id === uid);
 
   fetch("/api/sync", {
     method: "POST",
@@ -353,19 +354,19 @@ export const auth = {
     }
   },
 
-
   async signInWithGoogle(): Promise<{
     data: { user: AuthUser | null; session: AuthSession | null };
     error: Error | null;
   }> {
     try {
-      const { signInWithPopup, GoogleAuthProvider } = await import("firebase/auth");
+      const { signInWithPopup, GoogleAuthProvider } =
+        await import("firebase/auth");
       const { firebaseAuth } = await import("./firebase");
-      
+
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(firebaseAuth, provider);
       const idToken = await result.user.getIdToken();
-      
+
       const res = await fetch("/api/auth/google", {
         method: "POST",
         headers: {
@@ -406,7 +407,10 @@ export const auth = {
     } catch (err: any) {
       return {
         data: { user: null, session: null },
-        error: err instanceof Error ? err : new Error(err.message || "Failed to authenticate with Google"),
+        error:
+          err instanceof Error
+            ? err
+            : new Error(err.message || "Failed to authenticate with Google"),
       };
     }
   },

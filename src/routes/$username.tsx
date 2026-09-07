@@ -1,6 +1,11 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { db, fetchProfileByUsername, type Profile, type BioLink } from "@/lib/bio";
+import {
+  db,
+  fetchProfileByUsername,
+  type Profile,
+  type BioLink,
+} from "@/lib/bio";
 import { ProfileView } from "@/components/ProfileView";
 
 export const Route = createFileRoute("/$username")({
@@ -70,7 +75,10 @@ function PublicProfile() {
     const res = await db.rpc("increment_profile_view", {
       _username: profile.username,
     });
-    if (res.data && typeof (res.data as { views?: number }).views === "number") {
+    if (
+      res.data &&
+      typeof (res.data as { views?: number }).views === "number"
+    ) {
       setProfile((prev) => ({
         ...prev,
         views: (res.data as { views: number }).views,
@@ -103,7 +111,12 @@ function ProfileNotFound() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     void fetchProfileByUsername(username).then((res) => {
-      if (res && res.profile && res.profile.username && !res.profile.is_banned) {
+      if (
+        res &&
+        res.profile &&
+        res.profile.username &&
+        !res.profile.is_banned
+      ) {
         setClientProfile(res);
       }
     });
@@ -170,4 +183,3 @@ function ProfileNotFound() {
     </div>
   );
 }
-
