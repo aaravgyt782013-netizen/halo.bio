@@ -5,7 +5,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { serverStorage } from "./server/storage";
 import { checkRateLimit } from "./server/rate-limiter";
 import { hashPasswordServer, verifyPasswordServer } from "./server/crypto";
-// @ts-ignore
+// @ts-expect-error JSON config import
 import fbConfig from "../firebase-applet-config.json";
 
 type ServerEntry = {
@@ -20,7 +20,8 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
-    serverEntryPromise = // @ts-ignore
+    serverEntryPromise =
+      // @ts-expect-error Dynamic import of TanStack Start server entry
       import("@tanstack/react-start/server-entry").then(
         (m) => (m.default ?? m) as ServerEntry,
       );
@@ -154,6 +155,19 @@ function isH3SwallowedErrorBody(body: string): boolean {
     return false;
   }
 }
+
+// Expose server storage to TanStack Start SSR loaders
+(
+  globalThis as unknown as {
+    __HALO_SERVER_STORE__: {
+      getProfile: (
+        username: string,
+      ) => Promise<{ profile: Profile; links: BioLink[] } | null>;
+    };
+  }
+).__HALO_SERVER_STORE__ = {
+  getProfile: (username: string) => serverStorage.getProfile(username),
+};
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
@@ -684,7 +698,11 @@ export default {
           );
           const res = await serverStorage.getProfile(username);
           if (!res) return jsonResponse({ error: "Profile not found" }, 404);
-          return jsonResponse(res);
+          return jsonResponse(res, 200, {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          });
         }
 
         if (url.pathname === "/api/stats") {

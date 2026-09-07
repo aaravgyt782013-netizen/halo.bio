@@ -27,6 +27,8 @@ import {
   Sparkles,
   Smartphone,
   Edit3,
+  Upload,
+  Volume2,
 } from "lucide-react";
 import {
   auth,
@@ -39,6 +41,8 @@ import {
 import { useAuth, useIsAdmin, useMyProfile } from "@/hooks/useAuth";
 import { ProfileView } from "@/components/ProfileView";
 import { PhoneFrame } from "@/components/PhoneFrame";
+import { LiquidOrbBackground } from "@/components/LiquidOrbBackground";
+import { motion, AnimatePresence } from "motion/react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -138,6 +142,40 @@ const CURATED_WALLPAPERS = [
   },
 ];
 
+const CURATED_VIDEOS = [
+  {
+    name: "Starry Night",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-star-sky-in-the-night-42864-large.mp4",
+  },
+  {
+    name: "Neon Tunnel",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-tunnel-of-futuristic-neon-lights-42930-large.mp4",
+  },
+  {
+    name: "Ocean Waves",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4",
+  },
+  {
+    name: "Gold Fluid",
+    url: "https://assets.mixkit.co/videos/preview/mixkit-gold-particles-moving-in-a-fluid-manner-42981-large.mp4",
+  },
+];
+
+const CURATED_AUDIO = [
+  {
+    name: "Lofi Dreamscape",
+    url: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
+  },
+  {
+    name: "Midnight Ambient",
+    url: "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=chill-abstract-intention-12099.mp3",
+  },
+  {
+    name: "Gentle Piano",
+    url: "https://cdn.pixabay.com/download/audio/2021/11/25/audio_946e300958.mp3?filename=ambient-piano-amp-strings-10711.mp3",
+  },
+];
+
 function Dashboard() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -160,6 +198,7 @@ function Dashboard() {
 
   // Audio testing
   const [testAudioPlaying, setTestAudioPlaying] = useState(false);
+  const [testedAudioUrl, setTestedAudioUrl] = useState<string | null>(null);
   const testAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const dragIndex = useRef<number | null>(null);
@@ -191,6 +230,17 @@ function Dashboard() {
     };
   }, []);
 
+  const notifyStoreUpdated = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("halo-store-updated"));
+      try {
+        localStorage.setItem("halo_sync_tick", String(Date.now()));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   const patch = (changes: Partial<Profile>) => {
     setIsDirty(true);
     setProfile((p) => (p ? { ...p, ...changes } : p));
@@ -202,6 +252,8 @@ function Dashboard() {
     const { error } = await db
       .from("profiles")
       .update({
+        id: profile.id,
+        username: profile.username,
         display_name: profile.display_name,
         bio: profile.bio,
         avatar_url: profile.avatar_url,
@@ -216,12 +268,17 @@ function Dashboard() {
         enter_text: profile.enter_text,
       })
       .eq("id", profile.id);
+
     setSaving(false);
     if (error) {
-      toast.error("Could not save changes");
+      toast.error(
+        "Could not save changes: " +
+          (error.message || "Please check connection"),
+      );
     } else {
       setIsDirty(false);
-      toast.success("Page updated successfully!");
+      notifyStoreUpdated();
+      toast.success("Page updated successfully! Live page is synced.");
     }
   };
 
@@ -242,17 +299,20 @@ function Dashboard() {
       return;
     }
     setLinks((l) => [...l, data as BioLink]);
+    notifyStoreUpdated();
     toast.success("Link added");
   };
 
   const updateLink = async (id: string, changes: Partial<BioLink>) => {
     setLinks((l) => l.map((x) => (x.id === id ? { ...x, ...changes } : x)));
     await db.from("links").update(changes).eq("id", id);
+    notifyStoreUpdated();
   };
 
   const removeLink = async (id: string) => {
     setLinks((l) => l.filter((x) => x.id !== id));
     await db.from("links").delete().eq("id", id);
+    notifyStoreUpdated();
     toast.info("Link removed");
   };
 
@@ -272,6 +332,7 @@ function Dashboard() {
         db.from("links").update({ position: i }).eq("id", l.id),
       ),
     );
+    notifyStoreUpdated();
   };
 
   const onDrop = (index: number) => {
@@ -294,20 +355,22 @@ function Dashboard() {
       toast.info("Optimizing & uploading…");
       const url = await uploadMedia(user.id, file, folder);
       onDone(url);
+      setIsDirty(true);
       toast.success("Uploaded successfully!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     }
   };
 
-  const toggleTestAudio = (url: string | null) => {
+  const toggleTestAudio = (url: string | null | undefined) => {
     if (!url) {
-      toast.error("Please enter a valid audio URL first");
+      toast.error("Please enter or select a valid audio URL first");
       return;
     }
     if (testAudioPlaying && testAudioRef.current) {
       testAudioRef.current.pause();
       setTestAudioPlaying(false);
+      setTestedAudioUrl(null);
       return;
     }
     try {
@@ -316,22 +379,28 @@ function Dashboard() {
       }
       const audio = new Audio(url);
       audio.volume = 0.5;
-      audio.onended = () => setTestAudioPlaying(false);
+      audio.onended = () => {
+        setTestAudioPlaying(false);
+        setTestedAudioUrl(null);
+      };
       audio.onerror = () => {
         toast.error("Audio URL could not be loaded");
         setTestAudioPlaying(false);
+        setTestedAudioUrl(null);
       };
       audio
         .play()
         .then(() => {
           setTestAudioPlaying(true);
+          setTestedAudioUrl(url);
         })
-        .catch((e) => {
+        .catch(() => {
           toast.error("Autoplay prevented or audio source invalid");
           setTestAudioPlaying(false);
+          setTestedAudioUrl(null);
         });
       testAudioRef.current = audio;
-    } catch (e) {
+    } catch {
       toast.error("Failed to initialize audio player");
     }
   };
@@ -366,313 +435,394 @@ function Dashboard() {
       : `https://halo.bio/${profile.username}`;
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* Dynamic Animated Liquid Glass Orbs Background */}
+      <LiquidOrbBackground accentColor={profile.accent_color || "#6366f1"} />
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
 
-      {/* Navigation header */}
-      <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 border-b border-border/40">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/"
-            className="font-display text-xl font-bold tracking-tight text-foreground hover:opacity-85"
-          >
-            halo<span className="text-primary">.bio</span>
-          </Link>
-          <span className="rounded-full bg-secondary/80 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-            @{profile.username}
-          </span>
-          {isDirty && (
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
-              Unsaved changes
+      {/* Navigation header with liquid glass and tactile bevels */}
+      <header className="sticky top-0 z-30 mx-auto max-w-6xl w-full px-3.5 sm:px-5 py-2.5 sm:py-3 transition-all">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-t border-white/80 border-b border-black/10 border-x border-white/40 p-2.5 sm:p-3 shadow-[0_10px_30px_rgba(0,0,0,0.06),_inset_0_1px_1px_rgba(255,255,255,0.9)] min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Link
+              to="/"
+              className="font-display text-lg sm:text-xl font-bold tracking-tight text-foreground hover:opacity-85 shrink-0 transition-transform active:scale-95"
+            >
+              halo<span className="text-primary">.bio</span>
+            </Link>
+            <span className="truncate rounded-full neo-sunken px-3 py-1 text-xs font-semibold text-muted-foreground max-w-[130px] sm:max-w-[200px]">
+              @{profile.username}
             </span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Mobile view toggle */}
-          <div className="flex lg:hidden rounded-lg bg-secondary p-0.5">
-            <button
-              type="button"
-              onClick={() => setMobileView("editor")}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
-                mobileView === "editor"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <Edit3 className="h-3.5 w-3.5" /> Editor
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileView("preview")}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
-                mobileView === "preview"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <Smartphone className="h-3.5 w-3.5" /> Preview
-            </button>
+            {isDirty && (
+              <span className="shrink-0 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 animate-pulse">
+                Unsaved
+              </span>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShareModalOpen(true)}
-            className="btn-ghost"
-            title="Share & QR Code"
-          >
-            <Share2 className="h-4 w-4" /> Share
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {/* Mobile view toggle */}
+            <div className="flex lg:hidden rounded-xl neo-sunken p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMobileView("editor")}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  mobileView === "editor"
+                    ? "bg-white dark:bg-slate-800 text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <Edit3 className="h-3.5 w-3.5" /> Editor
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileView("preview")}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  mobileView === "preview"
+                    ? "bg-white dark:bg-slate-800 text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <Smartphone className="h-3.5 w-3.5" /> Preview
+              </button>
+            </div>
 
-          {isAdmin && (
-            <Link to="/admin" className="btn-ghost">
-              <ShieldCheck className="h-4 w-4" /> Staff
-            </Link>
-          )}
-
-          {profile.username && (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               type="button"
-              onClick={async () => {
-                if (isDirty) {
-                  await saveProfile();
-                }
-                window.open(`/${profile.username}`, "_blank");
-              }}
-              className="btn-ghost"
-              title="View live public profile (auto-saves changes)"
+              onClick={() => setShareModalOpen(true)}
+              className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
+              title="Share & QR Code"
             >
-              <ExternalLink className="h-4 w-4" /> View Live
-            </button>
-          )}
+              <Share2 className="h-3.5 w-3.5" />{" "}
+              <span className="hidden sm:inline">Share</span>
+            </motion.button>
 
-          <button
-            onClick={saveProfile}
-            disabled={saving}
-            className="btn-primary"
-          >
-            <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}
-          </button>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3 text-xs shrink-0"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" /> Staff
+              </Link>
+            )}
 
-          <button
-            onClick={async () => {
-              await auth.signOut();
-              navigate({ to: "/" });
-            }}
-            className="btn-ghost"
-            title="Log out"
-            aria-label="Log out"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+            {profile.username && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={async () => {
+                  if (isDirty) {
+                    await saveProfile();
+                  }
+                  window.open(`/${profile.username}`, "_blank");
+                }}
+                className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
+                title="View live public profile (auto-saves changes)"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />{" "}
+                <span className="hidden sm:inline">View Live</span>
+              </motion.button>
+            )}
+
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={saveProfile}
+              disabled={saving}
+              className="btn-liquid py-1.5 px-3.5 sm:px-4 text-xs shrink-0 inline-flex items-center gap-1.5"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              <span>{saving ? "Saving…" : "Save"}</span>
+            </motion.button>
+
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={async () => {
+                await auth.signOut();
+                navigate({ to: "/" });
+              }}
+              className="btn-liquid-ghost py-1.5 px-2 sm:px-2.5 text-xs shrink-0 text-muted-foreground hover:text-destructive"
+              title="Log out"
+              aria-label="Log out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </motion.button>
+          </div>
         </div>
       </header>
 
-      {/* Analytics KPI strip */}
-      <div className="mx-auto max-w-6xl px-5 pt-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="glass rounded-xl p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Eye className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                Total Views
-              </p>
-              <p className="font-display text-lg font-bold text-foreground">
-                {totalViews}
-              </p>
-            </div>
-          </div>
-
-          <div className="glass rounded-xl p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/15 text-success">
-              <MousePointerClick className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                Total Clicks
-              </p>
-              <p className="font-display text-lg font-bold text-foreground">
-                {totalClicks}
-              </p>
-            </div>
-          </div>
-
-          <div className="glass rounded-xl p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-foreground">
-              <BarChart3 className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                Click Rate (CTR)
-              </p>
-              <p className="font-display text-lg font-bold text-foreground">
-                {ctr}%
-              </p>
-            </div>
-          </div>
-
-          <div className="glass rounded-xl p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Link2 className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                Active Links
-              </p>
-              <p className="font-display text-lg font-bold text-foreground">
-                {links.length}
-              </p>
-            </div>
-          </div>
+      {/* Analytics KPI strip with Neomorphic + Liquid Glass Cards */}
+      <div className="mx-auto max-w-6xl w-full px-3 sm:px-5 pt-3 sm:pt-4 min-w-0">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5 w-full">
+          {[
+            {
+              label: "Total Views",
+              val: totalViews,
+              icon: Eye,
+              color: "text-primary",
+              bg: "bg-primary/10",
+              border: "border-primary/20",
+            },
+            {
+              label: "Total Clicks",
+              val: totalClicks,
+              icon: MousePointerClick,
+              color: "text-emerald-500",
+              bg: "bg-emerald-500/10",
+              border: "border-emerald-500/20",
+            },
+            {
+              label: "Click Rate",
+              val: `${ctr}%`,
+              icon: BarChart3,
+              color: "text-blue-500",
+              bg: "bg-blue-500/10",
+              border: "border-blue-500/20",
+            },
+            {
+              label: "Active Links",
+              val: links.length,
+              icon: Link2,
+              color: "text-purple-500",
+              bg: "bg-purple-500/10",
+              border: "border-purple-500/20",
+            },
+          ].map((item) => (
+            <motion.div
+              key={item.label}
+              whileHover={{ y: -2, scale: 1.015 }}
+              transition={{ duration: 0.2 }}
+              className="neo-raised rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0"
+            >
+              <div
+                className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl ${item.bg} ${item.color} border ${item.border} shadow-[0_2px_6px_rgba(0,0,0,0.06),_inset_0_1px_1px_rgba(255,255,255,0.7)]`}
+              >
+                <item.icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                  {item.label}
+                </p>
+                <p className="font-display text-base sm:text-lg font-bold text-foreground truncate tracking-tight">
+                  {item.val}
+                </p>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 
-      <main className="mx-auto grid max-w-6xl w-full overflow-hidden gap-6 px-4 py-6 lg:grid-cols-[1fr_360px]">
-        {/* Editor panel */}
+      <main className="mx-auto grid max-w-6xl w-full min-w-0 gap-6 px-3 sm:px-5 py-4 sm:py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Editor panel with Liquid Glass border & Neomorphic depth */}
         <section
-          className={`glass-panel p-4 sm:p-7 shadow-lift w-full max-w-full overflow-hidden ${
+          className={`liquid-glass rounded-3xl p-3.5 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.08)] w-full min-w-0 max-w-full overflow-hidden ${
             mobileView === "preview" ? "hidden lg:block" : "block"
           }`}
         >
-          <div className="mb-6 flex flex-wrap gap-1 rounded-xl bg-secondary/80 p-1">
+          {/* Neomorphic Sunken Tabs with Animated Liquid Indicator Pill */}
+          <div className="mb-6 grid grid-cols-3 gap-1 rounded-2xl neo-sunken p-1.5 w-full min-w-0 relative">
             {(
               [
                 ["links", "Links", Link2],
                 ["appearance", "Appearance", Palette],
-                ["effects", "Media & Effects", Music4],
+                ["effects", "Media & FX", Music4],
               ] as const
-            ).map(([key, label, Icon]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                  tab === key
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" /> {label}
-              </button>
-            ))}
+            ).map(([key, label, Icon]) => {
+              const isActive = tab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`relative inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl px-2 py-2.5 text-[11px] sm:text-xs font-semibold transition-colors min-w-0 truncate z-10 ${
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute inset-0 rounded-xl bg-white dark:bg-slate-800 shadow-[0_4px_14px_rgba(0,0,0,0.1),_inset_0_1px_1px_rgba(255,255,255,0.9)] border-t border-white/80 border-b border-black/10 -z-10"
+                      transition={{
+                        type: "spring",
+                        stiffness: 450,
+                        damping: 32,
+                      }}
+                    />
+                  )}
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Links tab */}
           {tab === "links" && (
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-1">
-                <span className="text-xs font-semibold text-muted-foreground">
+            <div className="space-y-3.5 w-full min-w-0">
+              <div className="flex items-center justify-between pb-1 min-w-0">
+                <span className="text-xs font-semibold text-muted-foreground truncate">
                   Your bio links ({links.length})
                 </span>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={addLink}
-                  className="btn-primary py-1 px-3 text-xs"
+                  className="btn-liquid py-1 px-3 text-xs shrink-0 inline-flex items-center gap-1"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Link
-                </button>
+                </motion.button>
               </div>
 
               {links.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/80 p-8 text-center">
+                <div className="rounded-2xl border border-dashed border-border/80 p-6 sm:p-8 text-center w-full min-w-0">
                   <p className="text-sm font-semibold text-foreground">
                     No links yet
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
                     Add your first link to YouTube, Spotify, store, or
                     portfolio.
                   </p>
-                  <button onClick={addLink} className="btn-primary mt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={addLink}
+                    className="btn-liquid mt-4 py-2 px-4 text-xs"
+                  >
                     <Plus className="h-4 w-4" /> Add your first link
-                  </button>
+                  </motion.button>
                 </div>
               ) : (
-                links.map((link, i) => (
-                  <div
-                    key={link.id}
-                    draggable
-                    onDragStart={() => (dragIndex.current = i)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => onDrop(i)}
-                    className="surface flex items-start gap-2.5 p-3.5 rounded-xl border border-border/70"
-                  >
-                    <GripVertical className="mt-2.5 h-4 w-4 shrink-0 cursor-grab text-muted-foreground hover:text-foreground" />
+                <AnimatePresence>
+                  {links.map((link, i) => (
+                    <motion.div
+                      key={link.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      draggable
+                      onDragStart={() => (dragIndex.current = i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDrop(i)}
+                      className="neo-raised flex flex-col sm:flex-row items-stretch sm:items-start gap-2.5 p-3 sm:p-3.5 rounded-2xl min-w-0 w-full relative overflow-hidden group"
+                    >
+                      {/* Subtle liquid sheen reflection on hover */}
+                      <div className="pointer-events-none absolute -inset-full opacity-0 group-hover:opacity-10 transition-opacity duration-700 mix-blend-overlay rotate-12 bg-gradient-to-r from-transparent via-white to-transparent" />
 
-                    <div className="grid flex-1 gap-2 sm:grid-cols-2 min-w-0">
-                      <div className="min-w-0">
-                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                          Label
-                        </label>
-                        <input
-                          className="field w-full"
-                          value={link.title}
-                          placeholder="e.g. My Latest Song"
-                          onChange={(e) =>
-                            updateLink(link.id, { title: e.target.value })
-                          }
-                        />
+                      <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
+                        <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground hover:text-foreground hidden sm:block mt-2.5" />
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden">
+                          Link #{i + 1}
+                        </span>
+                        <div className="flex items-center gap-0.5 sm:hidden">
+                          <button
+                            type="button"
+                            onClick={() => moveLink(i, "up")}
+                            disabled={i === 0}
+                            className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveLink(i, "down")}
+                            disabled={i === links.length - 1}
+                            className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeLink(link.id)}
+                            aria-label={`Delete ${link.title}`}
+                            className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors ml-1"
+                            title="Delete link"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                          URL destination
-                        </label>
-                        <input
-                          className="field w-full"
-                          value={link.url}
-                          placeholder="https://…"
-                          onChange={(e) =>
-                            updateLink(link.id, { url: e.target.value })
-                          }
-                          onBlur={(e) =>
-                            updateLink(link.id, {
-                              url: ensureProtocol(e.target.value),
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
 
-                    <div className="flex flex-col items-end gap-1 shrink-0 pt-1">
-                      <div className="flex items-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => moveLink(i, "up")}
-                          disabled={i === 0}
-                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
-                          title="Move up"
-                          aria-label="Move up"
-                        >
-                          <ArrowUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveLink(i, "down")}
-                          disabled={i === links.length - 1}
-                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
-                          title="Move down"
-                          aria-label="Move down"
-                        >
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => removeLink(link.id)}
-                          aria-label={`Delete ${link.title}`}
-                          className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors ml-1"
-                          title="Delete link"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <div className="grid flex-1 gap-2.5 sm:grid-cols-2 min-w-0 w-full">
+                        <div className="min-w-0 w-full">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                            Label
+                          </label>
+                          <input
+                            className="field w-full min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
+                            value={link.title}
+                            placeholder="e.g. My Latest Song"
+                            onChange={(e) =>
+                              updateLink(link.id, { title: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="min-w-0 w-full">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                            URL destination
+                          </label>
+                          <input
+                            className="field w-full min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
+                            value={link.url}
+                            placeholder="https://…"
+                            onChange={(e) =>
+                              updateLink(link.id, { url: e.target.value })
+                            }
+                            onBlur={(e) =>
+                              updateLink(link.id, {
+                                url: ensureProtocol(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
                       </div>
-                      <span className="text-[10px] font-medium text-muted-foreground pr-1">
-                        {link.clicks || 0} clicks
-                      </span>
-                    </div>
-                  </div>
-                ))
+
+                      <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0 pt-1">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveLink(i, "up")}
+                            disabled={i === 0}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-black/5 hover:text-foreground disabled:opacity-30 transition-colors"
+                            title="Move up"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveLink(i, "down")}
+                            disabled={i === links.length - 1}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-black/5 hover:text-foreground disabled:opacity-30 transition-colors"
+                            title="Move down"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeLink(link.id)}
+                            aria-label={`Delete ${link.title}`}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 transition-colors ml-0.5"
+                            title="Delete link"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <span className="text-[10px] font-semibold text-muted-foreground pr-1">
+                          {link.clicks || 0} clicks
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               )}
 
-              <p className="text-xs text-muted-foreground pt-2">
-                Tip: Drag rows or use arrow buttons to reorder. Links update
+              <p className="text-xs text-muted-foreground pt-1">
+                Tip: Drag rows or use arrow buttons to reorder. Changes sync
                 live on your page.
               </p>
             </div>
@@ -680,23 +830,23 @@ function Dashboard() {
 
           {/* Appearance tab */}
           {tab === "appearance" && (
-            <div className="space-y-6">
+            <div className="space-y-6 w-full min-w-0">
               {/* Presets row */}
-              <div>
+              <div className="w-full min-w-0">
                 <span className="label-text flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-primary" /> Curated
                   Design Themes
                 </span>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-2 w-full min-w-0">
                   {PRESET_THEMES.map((preset) => (
                     <button
                       key={preset.name}
                       type="button"
                       onClick={() => applyTheme(preset)}
-                      className="group flex flex-col items-center gap-1.5 rounded-xl border border-border/80 bg-card p-2 text-center hover:border-primary/50 transition-all active:scale-95"
+                      className="group flex flex-col items-center gap-1.5 rounded-xl border border-border/80 bg-card p-2 text-center hover:border-primary/50 transition-all active:scale-95 min-w-0"
                     >
                       <div
-                        className="h-8 w-full rounded-lg border border-white/20 shadow-inner"
+                        className="h-7 sm:h-8 w-full rounded-lg border border-white/20 shadow-inner flex items-start"
                         style={{ backgroundColor: preset.bgValue }}
                       >
                         <div
@@ -712,27 +862,28 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
+              <div className="grid gap-4 sm:grid-cols-2 w-full min-w-0">
+                <label className="block w-full min-w-0">
                   <span className="label-text">Display Name</span>
                   <input
-                    className="field"
+                    className="field w-full min-w-0"
                     value={profile.display_name ?? ""}
                     onChange={(e) => patch({ display_name: e.target.value })}
+                    placeholder="Your Name or Brand"
                   />
                 </label>
-                <label className="block">
+                <label className="block w-full min-w-0">
                   <span className="label-text">Accent Color</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full min-w-0">
                     <input
                       type="color"
-                      className="field h-[42px] w-14 p-1 cursor-pointer"
+                      className="field h-[42px] w-12 shrink-0 p-1 cursor-pointer rounded-lg"
                       value={profile.accent_color}
                       onChange={(e) => patch({ accent_color: e.target.value })}
                     />
                     <input
                       type="text"
-                      className="field flex-1 font-mono uppercase text-xs"
+                      className="field flex-1 min-w-0 font-mono uppercase text-xs"
                       value={profile.accent_color}
                       onChange={(e) => patch({ accent_color: e.target.value })}
                     />
@@ -740,10 +891,10 @@ function Dashboard() {
                 </label>
               </div>
 
-              <label className="block">
+              <label className="block w-full min-w-0">
                 <span className="label-text">Bio description</span>
                 <textarea
-                  className="field min-h-24 resize-y text-sm"
+                  className="field min-h-20 sm:min-h-24 resize-y text-sm w-full min-w-0"
                   maxLength={280}
                   value={profile.bio ?? ""}
                   onChange={(e) => patch({ bio: e.target.value })}
@@ -751,9 +902,10 @@ function Dashboard() {
                 />
               </label>
 
-              <div>
+              {/* Profile Avatar */}
+              <div className="w-full min-w-0">
                 <span className="label-text">Profile Avatar</span>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 min-w-0 w-full">
                   <div className="h-16 w-16 overflow-hidden rounded-full border border-border bg-secondary shrink-0 shadow-soft">
                     {profile.avatar_url ? (
                       <img
@@ -769,30 +921,48 @@ function Dashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="space-y-1 min-w-0 flex-1">
+                  <div className="space-y-2 min-w-0 flex-1 w-full">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="btn-ghost py-1.5 px-3 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-primary transition-all shrink-0">
+                        <Upload className="h-3.5 w-3.5 text-primary" />
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file)
+                              void upload(file, "avatar", (url) =>
+                                patch({ avatar_url: url }),
+                              );
+                          }}
+                        />
+                      </label>
+                      {profile.avatar_url && (
+                        <button
+                          type="button"
+                          onClick={() => patch({ avatar_url: null })}
+                          className="btn-ghost py-1.5 px-2.5 text-xs text-destructive hover:text-destructive shrink-0"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                     <input
-                      type="file"
-                      accept="image/*"
-                      className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file)
-                          void upload(file, "avatar", (url) =>
-                            patch({ avatar_url: url }),
-                          );
-                      }}
+                      className="field text-xs min-w-0 w-full"
+                      placeholder="Or paste avatar image URL (https://…)"
+                      value={profile.avatar_url ?? ""}
+                      onChange={(e) => patch({ avatar_url: e.target.value })}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      PNG, JPG, or WebP. Automatically compressed for fast
-                      loading.
-                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              {/* Background Wallpaper */}
+              <div className="space-y-3 w-full min-w-0">
                 <span className="label-text">Background Wallpaper</span>
-                <div className="flex gap-1 rounded-xl bg-secondary/80 p-1">
+                <div className="grid grid-cols-3 gap-1 rounded-xl bg-secondary/80 p-1 w-full min-w-0">
                   {(["color", "image", "video"] as const).map((t) => (
                     <button
                       key={t}
@@ -804,10 +974,10 @@ function Dashboard() {
                               ? "#0b0f19"
                               : t === "image"
                                 ? CURATED_WALLPAPERS[0].url
-                                : "",
+                                : CURATED_VIDEOS[0].url,
                         })
                       }
-                      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold capitalize transition-all ${
+                      className={`rounded-lg py-1.5 text-xs font-semibold capitalize transition-all min-w-0 truncate ${
                         profile.background_type === t
                           ? "bg-card text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
@@ -819,10 +989,10 @@ function Dashboard() {
                 </div>
 
                 {profile.background_type === "color" ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full min-w-0">
                     <input
                       type="color"
-                      className="field h-[42px] w-14 p-1 cursor-pointer"
+                      className="field h-[42px] w-12 shrink-0 p-1 cursor-pointer rounded-lg"
                       value={profile.background_value || "#0b0f19"}
                       onChange={(e) =>
                         patch({ background_value: e.target.value })
@@ -830,7 +1000,7 @@ function Dashboard() {
                     />
                     <input
                       type="text"
-                      className="field flex-1 font-mono uppercase text-xs"
+                      className="field flex-1 min-w-0 font-mono uppercase text-xs"
                       value={profile.background_value || "#0b0f19"}
                       onChange={(e) =>
                         patch({ background_value: e.target.value })
@@ -838,40 +1008,49 @@ function Dashboard() {
                     />
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 w-full min-w-0">
                     <input
-                      className="field"
+                      className="field w-full min-w-0"
                       placeholder={`Direct URL for ${profile.background_type} (e.g. https://…)`}
                       value={profile.background_value}
                       onChange={(e) =>
                         patch({ background_value: e.target.value })
                       }
                     />
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        accept={
-                          profile.background_type === "video"
-                            ? "video/mp4,video/webm"
-                            : "image/*"
-                        }
-                        className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file)
-                            void upload(file, "background", (url) =>
-                              patch({ background_value: url }),
-                            );
-                        }}
-                      />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="btn-ghost py-1.5 px-3 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-primary transition-all shrink-0">
+                        <Upload className="h-3.5 w-3.5 text-primary" />
+                        <span>
+                          {profile.background_type === "video"
+                            ? "Upload Video Clip (max 5MB)"
+                            : "Upload Wallpaper Image"}
+                        </span>
+                        <input
+                          type="file"
+                          accept={
+                            profile.background_type === "video"
+                              ? "video/mp4,video/webm"
+                              : "image/*"
+                          }
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file)
+                              void upload(file, "background", (url) =>
+                                patch({ background_value: url }),
+                              );
+                          }}
+                        />
+                      </label>
                     </div>
 
                     {profile.background_type === "image" && (
-                      <div>
+                      <div className="w-full min-w-0">
                         <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
                           Or choose a curated backdrop:
                         </p>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full min-w-0">
                           {CURATED_WALLPAPERS.map((wp) => (
                             <button
                               key={wp.name}
@@ -879,13 +1058,56 @@ function Dashboard() {
                               onClick={() =>
                                 patch({ background_value: wp.url })
                               }
-                              className="group relative h-12 rounded-lg overflow-hidden border border-border/80 hover:border-primary transition-all active:scale-95"
+                              className={`group relative h-14 sm:h-16 rounded-lg overflow-hidden border transition-all active:scale-95 ${
+                                profile.background_value === wp.url
+                                  ? "border-primary ring-2 ring-primary/30"
+                                  : "border-border/80 hover:border-primary"
+                              }`}
                             >
                               <img
                                 src={wp.url}
                                 alt={wp.name}
                                 className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                               />
+                              <div className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 px-1 text-[9px] font-medium text-white truncate">
+                                {wp.name}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {profile.background_type === "video" && (
+                      <div className="w-full min-w-0">
+                        <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
+                          Or choose a curated background clip:
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full min-w-0">
+                          {CURATED_VIDEOS.map((vid) => (
+                            <button
+                              key={vid.name}
+                              type="button"
+                              onClick={() =>
+                                patch({ background_value: vid.url })
+                              }
+                              className={`group relative h-14 sm:h-16 rounded-lg overflow-hidden border bg-black transition-all active:scale-95 ${
+                                profile.background_value === vid.url
+                                  ? "border-primary ring-2 ring-primary/30"
+                                  : "border-border/80 hover:border-primary"
+                              }`}
+                            >
+                              <video
+                                src={vid.url}
+                                muted
+                                playsInline
+                                loop
+                                autoPlay
+                                className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 px-1 text-[9px] font-medium text-white truncate">
+                                {vid.name}
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -896,11 +1118,11 @@ function Dashboard() {
               </div>
 
               {/* Glass styling controls */}
-              <div className="rounded-xl border border-border/80 bg-secondary/30 p-4 space-y-4">
+              <div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0">
                 <span className="text-xs font-bold text-foreground block">
                   Frosted Glass Parameters
                 </span>
-                <div className="grid gap-5 sm:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 w-full min-w-0">
                   <SliderRow
                     label="Card Opacity"
                     value={profile.card_opacity}
@@ -935,87 +1157,180 @@ function Dashboard() {
 
           {/* Media & effects tab */}
           {tab === "effects" && (
-            <div className="space-y-6">
-              <label className="block">
+            <div className="space-y-6 w-full min-w-0">
+              <label className="block w-full min-w-0">
                 <span className="label-text">“Click to Enter” Splash Text</span>
                 <input
-                  className="field"
-                  maxLength={40}
+                  className="field w-full min-w-0"
+                  maxLength={50}
                   placeholder="e.g. click to enter / explore & listen"
-                  value={profile.enter_text}
+                  value={profile.enter_text ?? ""}
                   onChange={(e) => patch({ enter_text: e.target.value })}
                 />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  The stylish prompt displayed before visitor enters and audio
+                  plays.
+                </p>
               </label>
 
-              <div className="surface flex items-center justify-between p-4 rounded-xl">
-                <div>
-                  <p className="text-sm font-semibold">Background Music</p>
-                  <p className="text-xs text-muted-foreground">
-                    Auto-plays after visitor taps to enter your profile.
+              {/* Skeuomorphic & Neomorphic Background Soundtrack Toggle Switch */}
+              <div className="neo-raised flex items-center justify-between p-4 sm:p-5 rounded-2xl min-w-0 w-full relative overflow-hidden">
+                <div className="min-w-0 pr-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold tracking-tight text-foreground truncate">
+                      Background Soundtrack
+                    </p>
+                    {profile.music_enabled && (
+                      <span className="flex items-center gap-0.5 h-3 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-semibold border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1" />
+                        Enabled
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Plays automatically with audio unlock once the visitor taps
+                    the enter screen.
                   </p>
                 </div>
+
+                {/* Skeuomorphic tactile physical toggle switch */}
                 <button
                   type="button"
                   onClick={() =>
                     patch({ music_enabled: !profile.music_enabled })
                   }
                   aria-label="Toggle background music"
-                  className={`h-7 w-12 rounded-full p-0.5 transition-colors ${
-                    profile.music_enabled ? "bg-primary" : "bg-input"
+                  className={`relative h-8 w-14 shrink-0 rounded-full p-1 cursor-pointer transition-colors duration-300 skeuo-switch-track ${
+                    profile.music_enabled
+                      ? "bg-gradient-to-r from-primary to-blue-500"
+                      : "bg-slate-300 dark:bg-slate-800"
                   }`}
                 >
-                  <span
-                    className={`block h-6 w-6 rounded-full bg-card shadow-soft transition-transform ${
-                      profile.music_enabled ? "translate-x-5" : ""
-                    }`}
+                  <motion.span
+                    animate={{ x: profile.music_enabled ? 24 : 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    className="block h-6 w-6 rounded-full skeuo-switch-knob"
                   />
                 </button>
               </div>
 
-              <div>
-                <label className="block">
-                  <span className="label-text">Audio Track URL (.mp3)</span>
-                  <div className="flex gap-2">
+              <div className="space-y-3.5 w-full min-w-0">
+                <label className="block w-full min-w-0">
+                  <span className="label-text">Audio Track (.mp3 URL)</span>
+                  <div className="flex flex-col sm:flex-row gap-2.5 w-full min-w-0">
                     <input
-                      className="field flex-1"
+                      className="field flex-1 min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
                       placeholder="https://…/track.mp3"
                       value={profile.music_url ?? ""}
                       onChange={(e) => patch({ music_url: e.target.value })}
                     />
-                    <button
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
                       type="button"
                       onClick={() => toggleTestAudio(profile.music_url)}
-                      className="btn-ghost px-3 text-xs shrink-0 flex items-center gap-1.5"
+                      className="btn-liquid-ghost py-2 px-3.5 text-xs shrink-0 flex items-center justify-center gap-2"
                     >
-                      {testAudioPlaying ? (
+                      {testAudioPlaying &&
+                      testedAudioUrl === profile.music_url ? (
                         <>
-                          <Square className="h-3.5 w-3.5 fill-current" /> Stop
+                          <Square className="h-3.5 w-3.5 fill-current text-rose-500" />
+                          <span>Stop</span>
+                          {/* Animated equalizer bars */}
+                          <span className="flex items-center gap-0.5 h-3 ml-1">
+                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-1" />
+                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-2" />
+                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-3" />
+                          </span>
                         </>
                       ) : (
                         <>
-                          <Play className="h-3.5 w-3.5 fill-current" /> Test
+                          <Play className="h-3.5 w-3.5 fill-current text-primary" />
+                          <span>Test Audio</span>
                         </>
                       )}
-                    </button>
+                    </motion.button>
                   </div>
                 </label>
 
-                <div className="mt-3">
-                  <span className="text-[11px] font-semibold text-muted-foreground block mb-1">
-                    Or upload an audio file (max 3.5MB):
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="btn-liquid-ghost py-1.5 px-3.5 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-full shrink-0">
+                    <Upload className="h-3.5 w-3.5 text-primary" />
+                    <span>Upload MP3 File (max 3.5MB)</span>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file)
+                          void upload(file, "music", (url) =>
+                            patch({ music_url: url, music_enabled: true }),
+                          );
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* Curated Soundtracks with Neomorphic Cards and Equalizers */}
+                <div className="w-full min-w-0 pt-3">
+                  <span className="text-[11px] font-bold text-muted-foreground block mb-2 uppercase tracking-wider">
+                    Or select a curated ambient background track:
                   </span>
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    className="w-[180px] sm:w-full overflow-hidden text-ellipsis text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file)
-                        void upload(file, "music", (url) =>
-                          patch({ music_url: url, music_enabled: true }),
-                        );
-                    }}
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full min-w-0">
+                    {CURATED_AUDIO.map((track) => {
+                      const isCurrent = profile.music_url === track.url;
+                      const isThisPlaying =
+                        testAudioPlaying && testedAudioUrl === track.url;
+                      return (
+                        <motion.div
+                          key={track.name}
+                          whileHover={{ y: -1.5 }}
+                          className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                            isCurrent
+                              ? "neo-raised border-primary/40 ring-1 ring-primary/30"
+                              : "bg-white/50 dark:bg-slate-800/40 border-border/80 hover:border-primary/40"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              patch({
+                                music_url: track.url,
+                                music_enabled: true,
+                              })
+                            }
+                            className="flex-1 text-left min-w-0"
+                          >
+                            <p className="text-xs font-semibold text-foreground truncate flex items-center gap-1">
+                              {track.name}
+                              {isCurrent && (
+                                <Check className="h-3 w-3 text-primary shrink-0" />
+                              )}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {isCurrent ? "Active track" : "Click to select"}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleTestAudio(track.url)}
+                            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground shrink-0"
+                            title={isThisPlaying ? "Stop" : "Preview"}
+                          >
+                            {isThisPlaying ? (
+                              <span className="flex items-center gap-0.5 h-3.5">
+                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-1" />
+                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-2" />
+                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-3" />
+                              </span>
+                            ) : (
+                              <Play className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1024,13 +1339,13 @@ function Dashboard() {
 
         {/* Live Phone Preview panel */}
         <aside
-          className={`lg:sticky lg:top-6 lg:self-start ${
-            mobileView === "editor" ? "hidden lg:block" : "block"
+          className={`w-full min-w-0 flex flex-col items-center lg:sticky lg:top-6 lg:self-start ${
+            mobileView === "editor" ? "hidden lg:flex" : "flex"
           }`}
         >
-          <div className="mb-2 flex items-center justify-between px-1">
+          <div className="mb-2 flex w-full max-w-[340px] items-center justify-between px-1">
             <span className="text-xs font-semibold text-muted-foreground">
-              Preview Canvas
+              Live Preview
             </span>
             <button
               type="button"
@@ -1053,82 +1368,96 @@ function Dashboard() {
             />
           </PhoneFrame>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Live interactive canvas — changes reflect instantly
+            Changes reflect instantly on your live canvas
           </p>
         </aside>
       </main>
 
-      {/* Share & QR Code Modal */}
-      {shareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-float-in">
-          <div className="glass-panel w-full max-w-sm p-6 shadow-lift relative">
-            <button
-              type="button"
-              onClick={() => setShareModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground"
+      {/* Share & QR Code Modal with Liquid Glass & Motion */}
+      <AnimatePresence>
+        {shareModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 16 }}
+              transition={{ type: "spring", stiffness: 350, damping: 26 }}
+              className="liquid-glass rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.3)] relative overflow-hidden"
             >
-              <X className="h-4 w-4" />
-            </button>
-
-            <h3 className="font-display text-lg font-bold text-foreground">
-              Share your Halo page
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Scan this QR code with any smartphone or copy your link.
-            </p>
-
-            <div className="mt-5 flex justify-center">
-              <div className="rounded-2xl border border-border bg-white p-3 shadow-soft">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                    publicUrl,
-                  )}`}
-                  alt="QR Code"
-                  className="h-40 w-40"
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center gap-2 rounded-xl border border-input bg-secondary/50 p-2">
-              <span className="truncate text-xs font-mono text-foreground flex-1 pl-1">
-                {publicUrl}
-              </span>
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(publicUrl);
-                    setCopied(true);
-                    toast.success("Copied to clipboard!");
-                    setTimeout(() => setCopied(false), 2000);
-                  } catch {
-                    toast.error("Could not copy URL");
-                  }
-                }}
-                className="btn-primary py-1 px-2.5 text-xs shrink-0"
+                onClick={() => setShareModalOpen(false)}
+                className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-                {copied ? "Copied" : "Copy"}
+                <X className="h-4 w-4" />
               </button>
-            </div>
 
-            <div className="mt-4">
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-ghost w-full justify-center text-xs"
-              >
-                <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+              <h3 className="font-display text-lg font-bold text-foreground">
+                Share your Halo page
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Scan this QR code with any smartphone or copy your link.
+              </p>
+
+              <div className="mt-5 flex justify-center">
+                <div className="rounded-2xl border-4 border-white/80 dark:border-slate-800 bg-white p-3.5 shadow-xl">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                      publicUrl,
+                    )}`}
+                    alt="QR Code"
+                    className="h-40 w-40"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2 rounded-2xl neo-sunken p-1.5">
+                <span className="truncate text-xs font-mono text-foreground flex-1 pl-2">
+                  {publicUrl}
+                </span>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(publicUrl);
+                      setCopied(true);
+                      toast.success("Copied to clipboard!");
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      toast.error("Could not copy URL");
+                    }
+                  }}
+                  className="btn-liquid py-1.5 px-3 text-xs shrink-0 inline-flex items-center gap-1.5"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  <span>{copied ? "Copied" : "Copy"}</span>
+                </motion.button>
+              </div>
+
+              <div className="mt-4">
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-liquid-ghost w-full justify-center text-xs py-2 inline-flex items-center gap-1.5"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
+                </a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1151,16 +1480,16 @@ function SliderRow({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="block">
-      <span className="label-text flex items-center justify-between text-xs">
-        {label}{" "}
+    <label className="block w-full min-w-0">
+      <span className="label-text flex items-center justify-between text-xs w-full">
+        <span>{label}</span>
         <span className="font-mono text-foreground font-semibold">
           {display}
         </span>
       </span>
       <input
         type="range"
-        className="slider-ios"
+        className="slider-ios w-full"
         min={min}
         max={max}
         step={step}

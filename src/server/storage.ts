@@ -13,7 +13,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-// @ts-ignore
+// @ts-expect-error JSON config import
 import firebaseConfig from "../../firebase-applet-config.json";
 
 const app = initializeApp(firebaseConfig || {});
@@ -71,8 +71,14 @@ function sanitizeSafeUrl(url: string | null | undefined): string {
   if (!url) return "";
   const trimmed = url.trim();
   if (/^(javascript|vbscript|file):/i.test(trimmed)) return "";
-  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/"))
+  if (
+    trimmed.startsWith("data:") &&
+    !trimmed.startsWith("data:image/") &&
+    !trimmed.startsWith("data:audio/") &&
+    !trimmed.startsWith("data:video/")
+  ) {
     return "";
+  }
   return trimmed;
 }
 
@@ -267,6 +273,7 @@ export const serverStorage = {
         if (!isAdmin && incoming.id !== userId) continue;
 
         const snap = await getDoc(doc(db, "profiles", incoming.id));
+        const nowIso = new Date().toISOString();
         if (snap.exists()) {
           const existing = snap.data() as Profile;
           let safeUsername = existing.username;
@@ -282,24 +289,39 @@ export const serverStorage = {
               safeUsername = incoming.username.toLowerCase().trim();
           }
 
+          const bgType = ["color", "image", "video"].includes(
+            incoming.background_type,
+          )
+            ? incoming.background_type
+            : existing.background_type;
+
+          let bgValue = existing.background_value;
+          if (bgType === "color") {
+            bgValue =
+              incoming.background_value &&
+              /^#[0-9a-fA-F]{3,8}$/.test(incoming.background_value)
+                ? incoming.background_value
+                : existing.background_value || "#0b0f19";
+          } else if (incoming.background_value) {
+            bgValue = sanitizeSafeUrl(incoming.background_value) || bgValue;
+          }
+
           const updated: Profile = {
             ...existing,
-            display_name: incoming.display_name
-              ? String(incoming.display_name).slice(0, 100)
-              : existing.display_name,
+            display_name:
+              incoming.display_name !== undefined
+                ? String(incoming.display_name).slice(0, 100)
+                : existing.display_name,
             bio:
               incoming.bio !== undefined
                 ? String(incoming.bio || "").slice(0, 500)
                 : existing.bio,
-            avatar_url: sanitizeSafeUrl(incoming.avatar_url) || null,
-            background_type: ["color", "image", "video"].includes(
-              incoming.background_type,
-            )
-              ? incoming.background_type
-              : existing.background_type,
-            background_value:
-              sanitizeSafeUrl(incoming.background_value) ||
-              existing.background_value,
+            avatar_url:
+              incoming.avatar_url !== undefined
+                ? sanitizeSafeUrl(incoming.avatar_url) || null
+                : existing.avatar_url,
+            background_type: bgType,
+            background_value: bgValue,
             card_opacity:
               typeof incoming.card_opacity === "number"
                 ? Math.min(1, Math.max(0, incoming.card_opacity))
@@ -317,11 +339,14 @@ export const serverStorage = {
               /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color)
                 ? incoming.accent_color
                 : existing.accent_color,
-            music_url: sanitizeSafeUrl(incoming.music_url) || null,
+            music_url:
+              incoming.music_url !== undefined
+                ? sanitizeSafeUrl(incoming.music_url) || null
+                : existing.music_url,
             music_enabled: Boolean(incoming.music_enabled),
             enter_text: incoming.enter_text
               ? String(incoming.enter_text).slice(0, 50)
-              : existing.enter_text,
+              : existing.enter_text || "Click to Enter",
             is_premium:
               isAdmin && typeof incoming.is_premium === "boolean"
                 ? incoming.is_premium
@@ -334,35 +359,97 @@ export const serverStorage = {
               isAdmin && typeof incoming.is_flagged === "boolean"
                 ? incoming.is_flagged
                 : existing.is_flagged,
-            views: existing.views,
+            views: existing.views || 0,
             username: safeUsername,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
           };
-          await setDoc(doc(db, "profiles", incoming.id), updated);
+          try {
+            await setDoc(doc(db, "profiles", incoming.id), updated);
+          } catch (err: unknown) {
+            const msg =
+              err instanceof Error ? err.message : "Failed to update profile";
+            return { success: false, error: msg };
+          }
+        } else {
+          // Document does not exist yet; initialize it
+          const initial: Profile = {
+            id: incoming.id,
+            username: incoming.username
+              ? incoming.username.toLowerCase().trim()
+              : null,
+            display_name: incoming.display_name
+              ? String(incoming.display_name).slice(0, 100)
+              : "User",
+            bio: incoming.bio ? String(incoming.bio).slice(0, 500) : "",
+            avatar_url: sanitizeSafeUrl(incoming.avatar_url) || null,
+            background_type: ["color", "image", "video"].includes(
+              incoming.background_type,
+            )
+              ? incoming.background_type
+              : "color",
+            background_value: incoming.background_value || "#0b0f19",
+            card_opacity:
+              typeof incoming.card_opacity === "number"
+                ? incoming.card_opacity
+                : 0.65,
+            card_radius:
+              typeof incoming.card_radius === "number"
+                ? incoming.card_radius
+                : 24,
+            card_blur:
+              typeof incoming.card_blur === "number" ? incoming.card_blur : 20,
+            accent_color: incoming.accent_color || "#3b82f6",
+            music_url: sanitizeSafeUrl(incoming.music_url) || null,
+            music_enabled: Boolean(incoming.music_enabled),
+            enter_text: incoming.enter_text || "Click to Enter",
+            is_premium: false,
+            is_banned: false,
+            is_flagged: false,
+            views: 0,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+          try {
+            await setDoc(doc(db, "profiles", incoming.id), initial);
+          } catch (err: unknown) {
+            const msg =
+              err instanceof Error ? err.message : "Failed to create profile";
+            return { success: false, error: msg };
+          }
         }
       }
     }
 
     if (payload.links && Array.isArray(payload.links)) {
-      const allowedIncoming = payload.links
-        .filter((l) => (isAdmin ? true : l.user_id === userId))
-        .map((l) => ({
-          ...l,
-          title: String(l.title || "Link").slice(0, 100),
-          url: sanitizeSafeUrl(l.url) || "https://",
-          clicks: typeof l.clicks === "number" ? l.clicks : 0,
-        }));
+      try {
+        const allowedIncoming = payload.links
+          .filter((l) => (isAdmin ? true : l.user_id === userId))
+          .map((l) => ({
+            ...l,
+            title: String(l.title || "Link").slice(0, 100),
+            url: sanitizeSafeUrl(l.url) || "https://",
+            clicks: typeof l.clicks === "number" ? l.clicks : 0,
+          }));
 
-      const q = query(collection(db, "links"), where("user_id", "==", userId));
-      const existingSnaps = await getDocs(q);
+        const q = query(
+          collection(db, "links"),
+          where("user_id", "==", userId),
+        );
+        const existingSnaps = await getDocs(q);
 
-      // Delete old links
-      for (const d of existingSnaps.docs) await deleteDoc(d.ref);
+        // Delete old links
+        for (const d of existingSnaps.docs) await deleteDoc(d.ref);
 
-      // Set new links
-      for (const l of allowedIncoming) {
-        if (!l.id) l.id = "lnk-" + Math.random().toString(36).substring(2, 10);
-        await setDoc(doc(db, "links", l.id), l);
+        // Set new links
+        for (const l of allowedIncoming) {
+          if (!l.id)
+            l.id = "lnk-" + Math.random().toString(36).substring(2, 10);
+          await setDoc(doc(db, "links", l.id), l);
+        }
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to update links";
+        return { success: false, error: msg };
       }
     }
 
@@ -449,7 +536,13 @@ export const serverStorage = {
     return { success: true, clicks: newClicks, counted: true };
   },
 
-  async getStats(): Promise<any> {
+  async getStats(): Promise<{
+    total_profiles: number;
+    active_profiles: number;
+    total_views: number;
+    total_clicks: number;
+    total_links: number;
+  }> {
     const pSnap = await getDocs(collection(db, "profiles"));
     const lSnap = await getDocs(collection(db, "links"));
 

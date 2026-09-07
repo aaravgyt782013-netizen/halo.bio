@@ -234,33 +234,56 @@ function getStore(): StoreData {
  * Synchronizes caller's profile and links changes to the server.
  * NOTE: NEVER sends users, passwords, or emails.
  */
-function syncToServer(currentUserId?: string) {
-  if (typeof window === "undefined" || typeof fetch === "undefined") return;
+export async function syncToServer(
+  currentUserId?: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (typeof window === "undefined" || typeof fetch === "undefined") {
+    return { success: true };
+  }
 
   const store = getStore();
   const uid = currentUserId || store.session?.user?.id;
-  if (!uid) return;
+  if (!uid) return { success: false, error: "Authentication required" };
 
   // Filter to caller's own records to prevent tampering
   const myProfiles = store.profiles.filter((p) => p.id === uid);
   const myLinks = store.links.filter((l) => l.user_id === uid);
 
-  fetch("/api/sync", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...CSRF_HEADER,
-    },
-    credentials: "include",
-    body: JSON.stringify({
-      profiles: myProfiles,
-      links: myLinks,
-    }),
-  }).catch(() => {
-    // offline retry or error ignored
-  });
+  try {
+    const res = await fetch("/api/sync", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...CSRF_HEADER,
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        profiles: myProfiles,
+        links: myLinks,
+      }),
+    });
 
-  window.dispatchEvent(new Event("halo-store-updated"));
+    if (!res.ok) {
+      const errJson = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      return {
+        success: false,
+        error: errJson.error || `Sync error (status ${res.status})`,
+      };
+    }
+
+    window.dispatchEvent(new Event("halo-store-updated"));
+    try {
+      localStorage.setItem("halo_sync_tick", String(Date.now()));
+    } catch {
+      // ignore
+    }
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Network error syncing data";
+    return { success: false, error: msg };
+  }
 }
 
 export const auth = {
@@ -404,13 +427,15 @@ export const auth = {
         data: { user: authUser, session },
         error: null,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message ||
+            "Failed to authenticate with Google";
       return {
         data: { user: null, session: null },
-        error:
-          err instanceof Error
-            ? err
-            : new Error(err.message || "Failed to authenticate with Google"),
+        error: new Error(message),
       };
     }
   },
@@ -764,7 +789,52 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           return p;
         });
 
-        syncToServer(currentUser?.id);
+        if (updatedCount === 0 && (targetId || currentUser?.id)) {
+          const effectiveId = targetId || currentUser?.id;
+          if (effectiveId) {
+            const existingIdx = store.profiles.findIndex(
+              (p) => p.id === effectiveId,
+            );
+            if (existingIdx >= 0) {
+              store.profiles[existingIdx] = {
+                ...store.profiles[existingIdx],
+                ...this.payload,
+                updated_at: new Date().toISOString(),
+              };
+              updatedCount = 1;
+            } else {
+              store.profiles.push({
+                id: effectiveId,
+                username: null,
+                display_name: null,
+                bio: null,
+                avatar_url: null,
+                background_type: "color",
+                background_value: "#0b0f19",
+                card_opacity: 0.65,
+                card_radius: 24,
+                card_blur: 20,
+                accent_color: "#3b82f6",
+                music_url: null,
+                music_enabled: false,
+                enter_text: "Click to Enter",
+                is_premium: false,
+                is_banned: false,
+                is_flagged: false,
+                views: 0,
+                created_at: new Date().toISOString(),
+                ...this.payload,
+                updated_at: new Date().toISOString(),
+              });
+              updatedCount = 1;
+            }
+          }
+        }
+
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: { count: updatedCount }, error: null };
       }
 
@@ -804,7 +874,10 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
             return true;
           });
         });
-        syncToServer(currentUser?.id);
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: null, error: null };
       }
     }
@@ -843,7 +916,10 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           ...this.payload,
         };
         store.links.push(newLink);
-        syncToServer(currentUser?.id);
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: newLink, error: null };
       }
 
@@ -861,7 +937,10 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           }
           return link;
         });
-        syncToServer(currentUser?.id);
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: { count: updatedCount }, error: null };
       }
 
@@ -873,7 +952,10 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
             return true;
           });
         });
-        syncToServer(currentUser?.id);
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: null, error: null };
       }
     }
@@ -1172,13 +1254,13 @@ export async function fetchProfileByUsername(username: string) {
           __HALO_SERVER_STORE__?: {
             getProfile: (
               u: string,
-            ) => { profile: Profile; links: BioLink[] } | null;
+            ) => Promise<{ profile: Profile; links: BioLink[] } | null>;
           };
         }
       ).__HALO_SERVER_STORE__;
 
       if (globalStore && typeof globalStore.getProfile === "function") {
-        const found = globalStore.getProfile(cleanUser);
+        const found = await globalStore.getProfile(cleanUser);
         if (found) return found;
       }
     }
@@ -1187,7 +1269,8 @@ export async function fetchProfileByUsername(username: string) {
     if (typeof window !== "undefined" && typeof fetch !== "undefined") {
       try {
         const res = await fetch(
-          `/api/profile/${encodeURIComponent(cleanUser)}`,
+          `/api/profile/${encodeURIComponent(cleanUser)}?t=${Date.now()}`,
+          { cache: "no-store" },
         );
         if (res.ok) {
           const data = (await res.json()) as {

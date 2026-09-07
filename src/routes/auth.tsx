@@ -182,8 +182,23 @@ function AuthPage() {
               if (error) throw error;
               toast.success("Welcome!");
               navigate({ to: "/dashboard" });
-            } catch (err: any) {
-              toast.error(err.message || "Google authentication failed");
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { message?: string })?.message ||
+                    "Google authentication failed";
+              if (
+                msg.toLowerCase().includes("unauthorized-domain") ||
+                msg.toLowerCase().includes("unauthorised domain")
+              ) {
+                toast.error(
+                  "Firebase Domain Error: Please add 'halo-bio.vercel.app' in your Firebase Console under Authentication → Settings → Authorized domains.",
+                  { duration: 8000 },
+                );
+              } else {
+                toast.error(msg);
+              }
             } finally {
               setBusy(false);
             }

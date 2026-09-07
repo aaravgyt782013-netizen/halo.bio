@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Music,
   Volume2,
@@ -8,6 +9,7 @@ import {
   Share2,
   ExternalLink,
   Check,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { BioLink, Profile } from "@/lib/bio";
@@ -128,11 +130,22 @@ export function ProfileView({
     }
   };
 
+  // Hybrid Glassmorphic + Skeuomorphic + Neomorphic card styling
   const cardStyle = {
     backgroundColor: `color-mix(in oklab, white ${Math.round(profile.card_opacity * 100)}%, transparent)`,
     borderRadius: `${profile.card_radius}px`,
-    backdropFilter: `blur(${profile.card_blur}px) saturate(180%)`,
-    WebkitBackdropFilter: `blur(${profile.card_blur}px) saturate(180%)`,
+    backdropFilter: `blur(${profile.card_blur}px) saturate(200%)`,
+    WebkitBackdropFilter: `blur(${profile.card_blur}px) saturate(200%)`,
+    boxShadow: `
+      0 24px 60px color-mix(in oklab, black 16%, transparent),
+      0 4px 16px color-mix(in oklab, ${profile.accent_color} 18%, transparent),
+      inset 0 1.5px 2px rgba(255, 255, 255, 0.75),
+      inset 0 -1.5px 2px rgba(0, 0, 0, 0.12)
+    `,
+    borderTop: "1px solid rgba(255, 255, 255, 0.7)",
+    borderLeft: "1px solid rgba(255, 255, 255, 0.4)",
+    borderRight: "1px solid rgba(255, 255, 255, 0.2)",
+    borderBottom: "1px solid rgba(0, 0, 0, 0.15)",
   } as const;
 
   return (
@@ -161,80 +174,161 @@ export function ProfileView({
             style={{ backgroundColor: profile.background_value || "#0b0f19" }}
           />
         )}
-        <div className="absolute inset-0 bg-foreground/15 backdrop-brightness-95" />
+
+        {/* Ambient liquid lighting tint */}
+        <div
+          className="absolute inset-0 mix-blend-overlay opacity-30"
+          style={{
+            background: `radial-gradient(circle at 50% 20%, ${profile.accent_color} 0%, transparent 70%)`,
+          }}
+        />
+        <div className="absolute inset-0 bg-black/25 backdrop-brightness-95" />
       </div>
 
-      {/* Black Enter Screen Overlay */}
-      {!entered && (
-        <button
-          type="button"
-          onClick={handleEnter}
-          className={`absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center select-none cursor-pointer transition-all duration-500 ${
-            leaving ? "animate-enter-out pointer-events-none" : ""
-          }`}
-          style={{ backgroundColor: "#000000" }}
-          aria-label="Click to enter profile"
-        >
-          <div className="flex flex-col items-center gap-3.5">
-            <span className="animate-pulse-soft font-display text-2xl sm:text-3xl font-bold tracking-wider text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.45)]">
-              {profile.enter_text || "Click To Enter"}
-            </span>
+      {/* Animated Liquid Crystal Enter Screen Overlay */}
+      <AnimatePresence>
+        {!entered && (
+          <motion.button
+            key="enter-overlay"
+            type="button"
+            onClick={handleEnter}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.08, filter: "blur(10px)" }}
+            transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/95 px-6 text-center select-none cursor-pointer"
+            aria-label="Click to enter profile"
+          >
+            {/* Concentric liquid ripple waves */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute h-36 w-36 rounded-full border border-white/20 animate-ripple-ring" />
+              <div
+                className="absolute h-48 w-48 rounded-full border border-white/10 animate-ripple-ring"
+                style={{ animationDelay: "0.9s" }}
+              />
 
-            {profile.music_enabled && profile.music_url ? (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md shadow-lg">
-                <Music className="h-3.5 w-3.5 text-blue-400 animate-pulse" />
-                <span>Audio enabled · Tap anywhere</span>
-              </span>
-            ) : (
-              <span className="text-xs font-medium tracking-widest text-white/40 uppercase">
-                Tap anywhere to open
-              </span>
-            )}
-          </div>
-        </button>
-      )}
+              {/* Skeuomorphic tactile crystal trigger button */}
+              <motion.div
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                className="relative flex h-24 w-24 items-center justify-center rounded-full p-1 bg-gradient-to-b from-white/30 via-white/10 to-black/60 shadow-[0_12px_32px_rgba(0,0,0,0.8),_inset_0_2px_3px_rgba(255,255,255,0.6)]"
+              >
+                <div
+                  className="flex h-full w-full items-center justify-center rounded-full backdrop-blur-xl transition-all"
+                  style={{
+                    background: `radial-gradient(circle at 35% 30%, ${profile.accent_color} 0%, rgba(15,23,42,0.9) 80%)`,
+                    boxShadow: `0 0 35px ${profile.accent_color}66, inset 0 1px 2px rgba(255,255,255,0.7)`,
+                  }}
+                >
+                  <Sparkles className="h-8 w-8 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)] animate-pulse" />
+                </div>
+              </motion.div>
+            </div>
 
-      {/* Content */}
+            <div className="flex flex-col items-center gap-2.5 max-w-xs">
+              <motion.span
+                animate={{ opacity: [0.75, 1, 0.75] }}
+                transition={{
+                  duration: 2.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="font-display text-2xl sm:text-3xl font-bold tracking-wider text-white drop-shadow-[0_2px_20px_rgba(255,255,255,0.6)]"
+              >
+                {profile.enter_text || "Click To Enter"}
+              </motion.span>
+
+              {profile.music_enabled && profile.music_url ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/95 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.5),_inset_0_1px_1px_rgba(255,255,255,0.4)]">
+                  <Music className="h-3.5 w-3.5 text-cyan-300 animate-bounce" />
+                  <span>Tap anywhere to unlock soundtrack</span>
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold tracking-widest text-white/50 uppercase">
+                  Touch anywhere to open
+                </span>
+              )}
+            </div>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Profile Content */}
       <div
-        className={`relative z-10 flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-10 ${
-          entered ? "animate-float-in" : "opacity-0"
+        className={`relative z-10 flex h-full flex-col items-center justify-center overflow-y-auto px-3.5 sm:px-4 py-8 sm:py-10 transition-opacity duration-500 ${
+          entered ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        <div
-          className="w-full max-w-sm border border-glass-border p-6 text-center shadow-glass relative"
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.96 }}
+          animate={entered ? { opacity: 1, y: 0, scale: 1 } : {}}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-sm p-6 text-center relative overflow-hidden"
           style={cardStyle}
         >
+          {/* Subtle Liquid Glass diagonal sheen sweep overlay */}
+          <div
+            className="pointer-events-none absolute -inset-full opacity-20 mix-blend-overlay rotate-12"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+            }}
+          />
+
           {/* Top action: Share profile */}
           {!preview && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               type="button"
               onClick={handleShare}
-              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors"
+              className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/40 text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.1),_inset_0_1px_1px_rgba(255,255,255,0.8)] transition-colors hover:bg-white/35"
               title="Share profile"
               aria-label="Share profile"
             >
               {copied ? (
-                <Check className="h-4 w-4 text-success" />
+                <Check className="h-4 w-4 text-emerald-600" />
               ) : (
-                <Share2 className="h-4 w-4" />
+                <Share2 className="h-3.5 w-3.5" />
               )}
-            </button>
+            </motion.button>
           )}
 
-          <div className="mx-auto mb-4 h-[92px] w-[92px] overflow-hidden rounded-full border-2 border-glass-border shadow-soft">
-            {profile.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={`${profile.username ?? "user"} avatar`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-secondary text-2xl font-bold text-secondary-foreground">
-                {(profile.display_name ?? profile.username ?? "?")
-                  .slice(0, 1)
-                  .toUpperCase()}
+          {/* Skeuomorphic & Liquid Avatar */}
+          <div className="relative mx-auto mb-4 inline-block">
+            {/* Pulsing ambient glow ring behind avatar when music is active */}
+            <motion.div
+              animate={{
+                scale: isPlaying ? [1, 1.12, 1] : 1,
+                opacity: isPlaying ? [0.5, 0.8, 0.5] : 0.3,
+              }}
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="absolute -inset-1.5 rounded-full blur-md"
+              style={{ backgroundColor: profile.accent_color }}
+            />
+
+            {/* Avatar frame with raised double bevel */}
+            <div className="relative h-[92px] w-[92px] overflow-hidden rounded-full p-[3px] bg-gradient-to-b from-white/90 via-white/40 to-black/20 shadow-[0_8px_20px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.9)]">
+              <div className="h-full w-full overflow-hidden rounded-full bg-card shadow-inner">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={`${profile.username ?? "user"} avatar`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-300 text-2xl font-bold text-slate-800">
+                    {(profile.display_name ?? profile.username ?? "?")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex items-center justify-center gap-1.5">
@@ -243,33 +337,37 @@ export function ProfileView({
             </h1>
             {profile.is_premium && (
               <BadgeCheck
-                className="h-5 w-5"
+                className="h-5 w-5 drop-shadow-sm"
                 style={{ color: profile.accent_color }}
               />
             )}
           </div>
+
           {profile.username && (
             <p className="mt-0.5 text-xs font-semibold text-muted-foreground tracking-wide">
               @{profile.username}
             </p>
           )}
+
           {profile.bio && (
-            <p className="mt-3 text-sm leading-relaxed text-foreground/85 whitespace-pre-line">
+            <p className="mt-3 text-sm leading-relaxed text-foreground/85 whitespace-pre-line px-1">
               {profile.bio}
             </p>
           )}
 
+          {/* Links list with Neomorphic + Skeuomorphic + Liquid Glass styling */}
           <div className="mt-5 space-y-2.5">
             {links.length === 0 && (
               <p className="text-xs text-muted-foreground py-2">
                 No links added yet
               </p>
             )}
-            {links.map((link) => {
+
+            {links.map((link, idx) => {
               const safeUrl = ensureProtocol(link.url);
               const badge = getDomainBadge(link.url);
               return (
-                <a
+                <motion.a
                   key={link.id}
                   href={preview ? undefined : safeUrl || "#"}
                   target={preview ? undefined : "_blank"}
@@ -278,60 +376,116 @@ export function ProfileView({
                     if (preview) e.preventDefault();
                     else onLinkClick?.(link);
                   }}
-                  className="group relative flex items-center justify-between w-full border border-glass-border px-4 py-3 text-sm font-semibold text-foreground transition-all hover:-translate-y-0.5 active:scale-[0.98]"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.4,
+                    delay: 0.1 + idx * 0.06,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{ scale: 1.025, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="group relative flex items-center justify-between w-full px-4 py-3 text-sm font-semibold text-foreground overflow-hidden cursor-pointer"
                   style={{
                     backgroundColor:
-                      "color-mix(in oklab, white 62%, transparent)",
-                    borderRadius: `${Math.max(10, profile.card_radius - 8)}px`,
-                    boxShadow: `0 6px 20px color-mix(in oklab, ${profile.accent_color} 20%, transparent)`,
+                      "color-mix(in oklab, white 68%, transparent)",
+                    borderRadius: `${Math.max(12, profile.card_radius - 8)}px`,
+                    backdropFilter: "blur(18px) saturate(180%)",
+                    WebkitBackdropFilter: "blur(18px) saturate(180%)",
+                    borderTop: "1px solid rgba(255, 255, 255, 0.85)",
+                    borderLeft: "1px solid rgba(255, 255, 255, 0.5)",
+                    borderRight: "1px solid rgba(255, 255, 255, 0.2)",
+                    borderBottom: "1px solid rgba(0, 0, 0, 0.18)",
+                    boxShadow: `
+                      0 8px 24px color-mix(in oklab, ${profile.accent_color} 22%, rgba(0,0,0,0.08)),
+                      0 2px 6px rgba(0,0,0,0.05),
+                      inset 0 1px 2px rgba(255, 255, 255, 0.9)
+                    `,
                   }}
                 >
-                  <span className="truncate pr-2 text-left">{link.title}</span>
+                  {/* Liquid Glass Shimmer reflection on hover */}
+                  <span
+                    className="pointer-events-none absolute -inset-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 mix-blend-overlay rotate-12"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.75) 50%, transparent 100%)",
+                    }}
+                  />
+
+                  <span className="truncate pr-2 text-left tracking-tight">
+                    {link.title}
+                  </span>
+
                   <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground group-hover:text-foreground">
                     {badge && (
-                      <span className="rounded-md bg-foreground/5 px-1.5 py-0.5 text-[10px] font-medium tracking-tight">
+                      <span className="rounded-md neo-sunken px-2 py-0.5 text-[10px] font-semibold tracking-tight text-foreground/85 shadow-sm">
                         {badge}
                       </span>
                     )}
-                    <ExternalLink className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    <ExternalLink className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                   </div>
-                </a>
+                </motion.a>
               );
             })}
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 font-medium">
-              <Eye className="h-3.5 w-3.5" /> {profile.views} views
+          {/* Footer Bar: Views & Skeuomorphic Soundwave Equalizer */}
+          <div className="mt-6 flex items-center justify-between px-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[11px]">
+              <Eye className="h-3.5 w-3.5 text-muted-foreground" />{" "}
+              {profile.views || 0} views
             </span>
+
             {profile.music_enabled &&
               profile.music_url &&
               !preview &&
               entered && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   type="button"
                   onClick={toggleMute}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-glass px-2.5 py-1 text-foreground hover:bg-glass/80 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-foreground bg-white/25 backdrop-blur-md border border-white/40 shadow-[0_2px_8px_rgba(0,0,0,0.1),_inset_0_1px_1px_rgba(255,255,255,0.8)] transition-all"
                   aria-label={muted ? "Unmute music" : "Mute music"}
                 >
                   {muted ? (
-                    <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
+                    <>
+                      <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-[10px] font-semibold text-muted-foreground">
+                        Muted
+                      </span>
+                    </>
                   ) : (
                     <>
-                      <Volume2 className="h-3.5 w-3.5 text-primary" />
-                      {isPlaying && (
-                        <span className="flex items-center gap-0.5">
-                          <span className="h-2 w-0.5 animate-pulse bg-primary rounded-full" />
-                          <span className="h-3 w-0.5 animate-pulse bg-primary rounded-full delay-75" />
-                          <span className="h-1.5 w-0.5 animate-pulse bg-primary rounded-full delay-150" />
-                        </span>
-                      )}
+                      <Volume2
+                        className="h-3.5 w-3.5"
+                        style={{ color: profile.accent_color }}
+                      />
+                      {/* Animated Equalizer soundwave bars */}
+                      <span className="flex items-center gap-0.5 h-3">
+                        <span
+                          className="w-0.5 rounded-full animate-soundwave-1"
+                          style={{ backgroundColor: profile.accent_color }}
+                        />
+                        <span
+                          className="w-0.5 rounded-full animate-soundwave-2"
+                          style={{ backgroundColor: profile.accent_color }}
+                        />
+                        <span
+                          className="w-0.5 rounded-full animate-soundwave-3"
+                          style={{ backgroundColor: profile.accent_color }}
+                        />
+                        <span
+                          className="w-0.5 rounded-full animate-soundwave-4"
+                          style={{ backgroundColor: profile.accent_color }}
+                        />
+                      </span>
                     </>
                   )}
-                </button>
+                </motion.button>
               )}
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
