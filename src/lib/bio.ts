@@ -2,13 +2,14 @@ export type GlassIntensity = "subtle" | "medium" | "heavy" | "ultra";
 
 export type SocialPlatform =
   | "instagram"
-  | "twitter"
   | "tiktok"
   | "youtube"
+  | "twitter"
   | "spotify"
-  | "github"
   | "discord"
+  | "github"
   | "twitch"
+  | "custom"
   | "linkedin"
   | "soundcloud"
   | "telegram"
@@ -17,8 +18,10 @@ export type SocialPlatform =
 
 export type SocialLink = {
   id: string;
-  platform: SocialPlatform;
+  platform: SocialPlatform | string;
   url: string;
+  title?: string;
+  icon_url?: string;
   active?: boolean;
 };
 
@@ -1367,29 +1370,57 @@ export async function optimizeImageDataUrl(
  * to keep sync payloads within network and database boundaries.
  */
 export async function uploadMedia(
-  _userId: string,
+  userId: string,
   file: File,
   folder: string,
 ): Promise<string> {
+  // Support background video uploads up to 100MB
+  if (file.type.startsWith("video/")) {
+    if (file.size > 100 * 1024 * 1024) {
+      throw new Error(
+        "Uploaded video clip exceeds 100MB. Please select a video file under 100MB.",
+      );
+    }
+  }
+
   // Guard audio size
   if (file.type.startsWith("audio/")) {
-    if (file.size > 1.5 * 1024 * 1024) {
+    if (file.size > 15 * 1024 * 1024) {
       throw new Error(
-        "Audio file exceeds 1.5MB for direct storage. For full songs, please paste a direct audio URL (e.g. MP3 link or stream URL).",
+        "Audio file exceeds 15MB. For full songs, please paste a direct audio URL.",
       );
     }
   }
 
-  // Guard video size for database document limit (1MB max Firestore document)
-  if (file.type.startsWith("video/")) {
-    if (file.size > 650 * 1024) {
-      throw new Error(
-        "Uploaded video clip exceeds 650KB (database document limit). For longer video backgrounds, please paste a direct MP4/WebM URL, a YouTube link, or select a curated video loop.",
-      );
+  // First attempt robust server-side media upload (writes to /public/uploads and streams via /api/media)
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder);
+    formData.append("userId", userId);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        "x-requested-with": "halo-app",
+      },
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        return data.url;
+      }
     }
+  } catch (serverErr) {
+    console.warn(
+      "Direct server upload attempt failed, falling back:",
+      serverErr,
+    );
   }
 
-  // Optimize and downscale images via Canvas
+  // Optimize and downscale images via Canvas if server upload wasn't used
   if (file.type.startsWith("image/") && typeof window !== "undefined") {
     return optimizeImageDataUrl(file, folder);
   }

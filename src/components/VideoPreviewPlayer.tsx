@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Sparkles,
   ExternalLink,
+  Zap,
 } from "lucide-react";
 
 type Props = {
@@ -39,33 +40,50 @@ export function VideoPreviewPlayer({
   const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBuffered, setIsBuffered] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
   const cleanUrl = videoUrl?.trim() || "";
   const ytId = getYouTubeId(cleanUrl);
 
-  // Reset state on URL change
+  // Optimistic reset & loading on URL change
   useEffect(() => {
     setHasError(false);
     setIsLoading(Boolean(cleanUrl));
+    setIsBuffered(false);
     setCurrentTime(0);
     setDuration(0);
 
     if (videoRef.current && !ytId && cleanUrl) {
-      videoRef.current.load();
-      videoRef.current.defaultMuted = isMuted;
+      videoRef.current.defaultMuted = true;
       videoRef.current.muted = isMuted;
+      videoRef.current.preload = "auto";
+      videoRef.current.load();
       videoRef.current
         .play()
         .then(() => {
           setIsPlaying(true);
           setIsLoading(false);
+          setIsBuffered(true);
         })
         .catch(() => {
-          // Autoplay policy might pause or block unmuted
-          setIsPlaying(false);
-          setIsLoading(false);
+          // If browser restricted autoplay, try muted fallback
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current
+              .play()
+              .then(() => {
+                setIsPlaying(true);
+                setIsLoading(false);
+                setIsBuffered(true);
+              })
+              .catch(() => {
+                setIsPlaying(false);
+                setIsLoading(false);
+              });
+          }
         });
     }
   }, [cleanUrl, ytId, isMuted]);
@@ -125,6 +143,14 @@ export function VideoPreviewPlayer({
 
   return (
     <div className="relative aspect-video w-full rounded-xl border border-border/80 bg-black overflow-hidden shadow-lg group">
+      {/* Optimistic Ambient Glow while buffering */}
+      <div
+        className="absolute inset-0 transition-opacity duration-1000 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 50% 50%, ${accentColor}33 0%, #0b0f19 80%)`,
+        }}
+      />
+
       {/* Video Viewport */}
       {ytId ? (
         <div className="relative h-full w-full pointer-events-auto">
@@ -133,9 +159,13 @@ export function VideoPreviewPlayer({
             src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=1&showinfo=0&rel=0&modestbranding=1&playsinline=1`}
             allow="autoplay; encrypted-media; picture-in-picture"
             title="Video background preview"
+            onLoad={() => {
+              setIsLoading(false);
+              setIsBuffered(true);
+            }}
           />
           <div className="absolute top-2 left-2 z-10 pointer-events-none">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-md border border-white/10">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-md border border-white/10">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
               YouTube Video Stream
             </span>
@@ -146,15 +176,26 @@ export function VideoPreviewPlayer({
           <video
             ref={videoRef}
             src={cleanUrl}
-            className="h-full w-full object-cover"
+            className={`h-full w-full object-cover transition-opacity duration-500 ${
+              isBuffered ? "opacity-100" : "opacity-0"
+            }`}
             loop
             playsInline
+            preload="auto"
             muted={isMuted}
             autoPlay
             onTimeUpdate={() => {
               if (videoRef.current) {
                 setCurrentTime(videoRef.current.currentTime);
               }
+            }}
+            onLoadedData={() => {
+              setIsLoading(false);
+              setIsBuffered(true);
+            }}
+            onCanPlay={() => {
+              setIsLoading(false);
+              setIsBuffered(true);
             }}
             onLoadedMetadata={() => {
               if (videoRef.current) {
@@ -164,6 +205,12 @@ export function VideoPreviewPlayer({
             }}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            onEnded={() => {
+              if (videoRef.current) {
+                videoRef.current.currentTime = 0;
+                videoRef.current.play().catch(() => {});
+              }
+            }}
             onError={() => {
               setHasError(true);
               setIsLoading(false);
@@ -172,19 +219,22 @@ export function VideoPreviewPlayer({
 
           {/* Top Status Badges */}
           <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none z-10">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md border border-white/15">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Live Video Preview
               </span>
-              <span className="rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-mono font-medium text-white/90 backdrop-blur-md">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-mono font-medium text-white/90 backdrop-blur-md">
+                <Zap className="h-2.5 w-2.5 text-amber-400" />
                 {cleanUrl.endsWith(".mp4")
-                  ? "MP4"
+                  ? "Direct MP4"
                   : cleanUrl.endsWith(".webm")
-                    ? "WebM"
-                    : cleanUrl.startsWith("/videos")
-                      ? "Curated Loop"
-                      : "Video Stream"}
+                    ? "WebM Stream"
+                    : cleanUrl.startsWith("/api/media/")
+                      ? "Uploaded HD"
+                      : cleanUrl.startsWith("/videos")
+                        ? "Curated Loop"
+                        : "Optimistic Stream"}
               </span>
             </div>
 
@@ -210,12 +260,12 @@ export function VideoPreviewPlayer({
             </div>
           )}
 
-          {/* Loading Indicator */}
+          {/* Optimistic Loading Indicator */}
           {isLoading && !hasError && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 pointer-events-none">
-              <div className="flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs text-white backdrop-blur-md">
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
+              <div className="flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs text-white backdrop-blur-md border border-white/10">
                 <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                Loading video...
+                <span>Optimistic Buffering...</span>
               </div>
             </div>
           )}

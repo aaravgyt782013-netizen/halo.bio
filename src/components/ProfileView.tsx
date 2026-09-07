@@ -68,6 +68,7 @@ export function ProfileView({
   const [muted, setMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -82,6 +83,7 @@ export function ProfileView({
     profile.background_type === "video" ? getYouTubeId(resolvedBgValue) : null;
 
   useEffect(() => {
+    setVideoReady(false);
     if (videoRef.current) {
       videoRef.current.defaultMuted = true;
       videoRef.current.muted = true;
@@ -200,26 +202,49 @@ export function ProfileView({
     <div className="relative h-full w-full overflow-hidden select-none">
       {/* Background layer */}
       <div className="absolute inset-0 bg-[#0b0f19] overflow-hidden">
+        {/* Optimistic ambient backdrop layer to eliminate black screen flickers while video links buffer */}
+        <div
+          className="absolute inset-0 transition-opacity duration-1000"
+          style={{
+            background: `radial-gradient(circle at 50% 30%, ${profile.accent_color || "#3b82f6"}22 0%, #0b0f19 80%)`,
+          }}
+        />
+
         {profile.background_type === "video" && resolvedBgValue ? (
           ytId ? (
-            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div
+              className={`pointer-events-none absolute inset-0 overflow-hidden transition-opacity duration-700 ease-out ${
+                videoReady ? "opacity-100" : "opacity-40"
+              }`}
+            >
               <iframe
                 className="pointer-events-none absolute top-1/2 left-1/2 h-[150%] w-[150%] -translate-x-1/2 -translate-y-1/2 object-cover border-0"
                 src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&enablejsapi=1`}
                 allow="autoplay; encrypted-media"
                 title="Background Video"
+                onLoad={() => setVideoReady(true)}
               />
             </div>
           ) : (
             <video
               ref={videoRef}
-              className="h-full w-full object-cover pointer-events-none"
+              className={`h-full w-full object-cover pointer-events-none transition-opacity duration-700 ease-out ${
+                videoReady ? "opacity-100" : "opacity-0"
+              }`}
               src={resolvedBgValue}
               autoPlay
               loop
               muted
               playsInline
               preload="auto"
+              onCanPlay={() => setVideoReady(true)}
+              onLoadedData={() => setVideoReady(true)}
+              onEnded={() => {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = 0;
+                  videoRef.current.play().catch(() => {});
+                }
+              }}
               onError={() => {
                 console.warn("Video background playback error");
               }}
@@ -347,6 +372,7 @@ export function ProfileView({
                     const cfg = getPlatformConfig(soc.platform);
                     const Icon = cfg.icon;
                     const safeSocUrl = ensureProtocol(soc.url);
+                    const label = soc.title || cfg.label;
 
                     return (
                       <a
@@ -357,19 +383,27 @@ export function ProfileView({
                         onClick={(e) => {
                           if (preview) {
                             e.preventDefault();
-                            toast.info(`Preview: ${cfg.label} link`);
+                            toast.info(`Preview: ${label} link`);
                           }
                         }}
-                        className="group relative flex h-9 w-9 items-center justify-center rounded-full border border-glass-border transition-all hover:scale-110 active:scale-95 shadow-sm"
+                        className="group relative flex h-9 w-9 items-center justify-center rounded-full border border-glass-border transition-all hover:scale-110 active:scale-95 shadow-sm overflow-hidden"
                         style={{
                           backgroundColor:
                             "color-mix(in oklab, white 68%, transparent)",
                           backdropFilter: `blur(${Math.max(6, profile.card_blur / 2)}px)`,
                         }}
-                        title={cfg.label}
-                        aria-label={cfg.label}
+                        title={label}
+                        aria-label={label}
                       >
-                        <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />
+                        {soc.icon_url ? (
+                          <img
+                            src={soc.icon_url}
+                            alt={label}
+                            className="h-4 w-4 object-contain rounded-sm transition-transform group-hover:scale-110"
+                          />
+                        ) : (
+                          <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />
+                        )}
                       </a>
                     );
                   })}

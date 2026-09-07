@@ -25,6 +25,8 @@ export type SocialLink = {
   id: string;
   platform: string;
   url: string;
+  title?: string;
+  icon_url?: string;
   active?: boolean;
 };
 
@@ -343,6 +345,10 @@ export const serverStorage = {
               .map((s) => ({
                 id: String(s.id || Math.random().toString(36).substring(2, 9)),
                 platform: String(s.platform).slice(0, 30),
+                title: s.title ? String(s.title).slice(0, 50) : undefined,
+                icon_url: s.icon_url
+                  ? sanitizeSafeUrl(s.icon_url) || undefined
+                  : undefined,
                 url: sanitizeSafeUrl(s.url),
                 active: s.active !== false,
               }));

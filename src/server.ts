@@ -1,5 +1,8 @@
 import "./lib/error-capture";
 
+import fs from "node:fs";
+import path from "node:path";
+import { Readable } from "node:stream";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { serverStorage } from "./server/storage";
@@ -179,13 +182,89 @@ export default {
         const clientIp = getClientIp(request);
         const method = request.method.toUpperCase();
 
-        // 1. Request Body Size Guard (max 4.5MB for Vercel/serverless compatibility)
+        // Handle direct media streaming (supports HTTP Range 206 for video buffering and seeking)
+        if (url.pathname.startsWith("/api/media/") && method === "GET") {
+          const rawName = url.pathname.slice("/api/media/".length);
+          const filename = path.basename(decodeURIComponent(rawName));
+          const filePath = path.join(
+            process.cwd(),
+            "public",
+            "uploads",
+            filename,
+          );
+          if (!fs.existsSync(filePath)) {
+            return new Response("Media not found", { status: 404 });
+          }
+
+          const stat = fs.statSync(filePath);
+          const fileSize = stat.size;
+          const ext = path.extname(filename).toLowerCase();
+          const mimeTypes: Record<string, string> = {
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".ogv": "video/ogg",
+            ".mov": "video/quicktime",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+            ".webp": "image/webp",
+            ".ico": "image/x-icon",
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+          };
+          const contentType = mimeTypes[ext] || "application/octet-stream";
+
+          const range = request.headers.get("range");
+          if (range) {
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            if (start >= fileSize || end >= fileSize || start > end) {
+              return new Response(null, {
+                status: 416,
+                headers: { "Content-Range": `bytes */${fileSize}` },
+              });
+            }
+            const chunksize = end - start + 1;
+            const nodeStream = fs.createReadStream(filePath, { start, end });
+            const webStream = Readable.toWeb(nodeStream);
+            return new Response(webStream as unknown as BodyInit, {
+              status: 206,
+              headers: {
+                "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+                "Accept-Ranges": "bytes",
+                "Content-Length": String(chunksize),
+                "Content-Type": contentType,
+                "Cache-Control": "public, max-age=31536000, immutable",
+              },
+            });
+          }
+
+          const nodeStream = fs.createReadStream(filePath);
+          const webStream = Readable.toWeb(nodeStream);
+          return new Response(webStream as unknown as BodyInit, {
+            status: 200,
+            headers: {
+              "Content-Length": String(fileSize),
+              "Content-Type": contentType,
+              "Accept-Ranges": "bytes",
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          });
+        }
+
+        // 1. Request Body Size Guard (100MB for /api/upload, 4.5MB for JSON payloads)
+        const isUpload = url.pathname === "/api/upload";
+        const maxLimit = isUpload ? 100 * 1024 * 1024 : 4.5 * 1024 * 1024;
         const contentLength = request.headers.get("content-length");
-        if (contentLength && parseInt(contentLength, 10) > 4.5 * 1024 * 1024) {
+        if (contentLength && parseInt(contentLength, 10) > maxLimit) {
           return jsonResponse(
             {
-              error:
-                "Payload too large. Please use a smaller file or compressed image.",
+              error: isUpload
+                ? "File exceeds the 100MB upload limit."
+                : "Payload too large. Please use a smaller file or compressed image.",
             },
             413,
           );
@@ -197,7 +276,7 @@ export default {
           if (csrfHeader !== "halo-app") {
             return jsonResponse(
               { error: "Invalid or missing CSRF header (X-Requested-With)" },
-              403,
+              200,
             );
           }
         }
@@ -208,6 +287,8 @@ export default {
 
         if (url.pathname.startsWith("/api/auth/")) {
           rateLimit = 20; // auth operations
+        } else if (url.pathname === "/api/upload") {
+          rateLimit = 60; // media uploads
         } else if (
           url.pathname === "/api/change-password" ||
           url.pathname.startsWith("/api/admin/")
@@ -236,6 +317,52 @@ export default {
             429,
             { "Retry-After": String(rateCheck.retryAfter) },
           );
+        }
+
+        // --- MEDIA UPLOAD ROUTE (Supports videos up to 100MB and custom icons) ---
+        if (url.pathname === "/api/upload" && method === "POST") {
+          try {
+            const formData = await request.formData();
+            const file = formData.get("file") as File | null;
+            if (!file) {
+              return jsonResponse({ error: "No file provided" }, 400);
+            }
+
+            if (file.size > 100 * 1024 * 1024) {
+              return jsonResponse({ error: "File exceeds 100MB limit" }, 413);
+            }
+
+            const rawExt = path.extname(file.name || "").toLowerCase();
+            const defaultExt = file.type.startsWith("video/")
+              ? ".mp4"
+              : file.type.startsWith("image/svg")
+                ? ".svg"
+                : ".png";
+            const ext = /^\.[a-zA-Z0-9]+$/.test(rawExt) ? rawExt : defaultExt;
+            const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
+            const uploadDir = path.join(process.cwd(), "public", "uploads");
+            if (!fs.existsSync(uploadDir)) {
+              fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const filePath = path.join(uploadDir, filename);
+            const arrayBuf = await file.arrayBuffer();
+            fs.writeFileSync(filePath, Buffer.from(arrayBuf));
+
+            return jsonResponse({
+              success: true,
+              url: `/api/media/${filename}`,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            });
+          } catch (err) {
+            console.error("Upload handler error:", err);
+            return jsonResponse(
+              { error: "Failed to process media upload" },
+              500,
+            );
+          }
         }
 
         // --- AUTH ROUTES ---

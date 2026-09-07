@@ -283,11 +283,11 @@ function Dashboard() {
           finalBgValue = CURATED_VIDEOS[0].url;
         } else if (
           finalBgValue.startsWith("data:video/") &&
-          finalBgValue.length > 900 * 1024
+          finalBgValue.length > 950 * 1024
         ) {
           setSaving(false);
           toast.error(
-            "Direct video file is too large for database storage (>650KB). Please select a curated background clip or paste a direct MP4/YouTube link.",
+            "Video file could not be saved to server storage and exceeds database limits. Please re-upload or select a video link.",
             { duration: 6000 },
           );
           return;
@@ -872,6 +872,7 @@ function Dashboard() {
               socialLinks={profile.social_links || []}
               onChange={(updated) => patch({ social_links: updated })}
               accentColor={profile.accent_color}
+              userId={user?.id}
             />
           )}
 
@@ -1092,7 +1093,7 @@ function Dashboard() {
                         <Upload className="h-3.5 w-3.5 text-primary" />
                         <span>
                           {profile.background_type === "video"
-                            ? "Upload Micro Clip (< 650KB)"
+                            ? "Upload Background Video (Up to 100MB)"
                             : "Upload Wallpaper Image"}
                         </span>
                         <input
@@ -1116,9 +1117,9 @@ function Dashboard() {
 
                     {profile.background_type === "video" && (
                       <p className="text-[11px] text-muted-foreground">
-                        Supports direct MP4/WebM links, YouTube links (which
-                        loop silently as background), or lightweight
-                        micro-clips.
+                        Supports uploaded videos up to 100MB with
+                        high-performance streaming, direct MP4/WebM URLs,
+                        YouTube loops, or curated background video clips.
                       </p>
                     )}
 

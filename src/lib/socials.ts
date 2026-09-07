@@ -3,14 +3,15 @@ import {
   Twitter,
   Youtube,
   Github,
-  Linkedin,
-  Mail,
-  Globe,
-  Send,
   Headphones,
   MessageSquare,
   Twitch,
   Music,
+  Sparkles,
+  Globe,
+  Mail,
+  Linkedin,
+  Send,
   Radio,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export interface PlatformConfig {
   hint: string;
 }
 
+// Famous, most popular social platforms only
 export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
   {
     id: "instagram",
@@ -34,16 +36,7 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Instagram,
     color: "#E1306C",
     prefixUrl: "https://instagram.com/",
-    hint: "Instagram profile link or @handle",
-  },
-  {
-    id: "twitter",
-    label: "Twitter / X",
-    placeholder: "username or https://x.com/username",
-    icon: Twitter,
-    color: "#1DA1F2",
-    prefixUrl: "https://x.com/",
-    hint: "X (Twitter) profile link or @handle",
+    hint: "Instagram profile or @handle",
   },
   {
     id: "tiktok",
@@ -52,7 +45,7 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Music,
     color: "#00F2FE",
     prefixUrl: "https://tiktok.com/@",
-    hint: "TikTok profile link or @handle",
+    hint: "TikTok profile or @handle",
   },
   {
     id: "youtube",
@@ -61,7 +54,16 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Youtube,
     color: "#FF0000",
     prefixUrl: "https://youtube.com/@",
-    hint: "YouTube channel URL or @handle",
+    hint: "YouTube channel or @handle",
+  },
+  {
+    id: "twitter",
+    label: "Twitter / X",
+    placeholder: "username or https://x.com/username",
+    icon: Twitter,
+    color: "#1DA1F2",
+    prefixUrl: "https://x.com/",
+    hint: "X (Twitter) handle or link",
   },
   {
     id: "spotify",
@@ -70,7 +72,7 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Headphones,
     color: "#1DB954",
     prefixUrl: "https://open.spotify.com/",
-    hint: "Artist or playlist URL",
+    hint: "Artist profile or playlist URL",
   },
   {
     id: "discord",
@@ -88,7 +90,7 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Github,
     color: "#F0F6FC",
     prefixUrl: "https://github.com/",
-    hint: "GitHub profile username or URL",
+    hint: "GitHub username or profile link",
   },
   {
     id: "twitch",
@@ -97,71 +99,83 @@ export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     icon: Twitch,
     color: "#9146FF",
     prefixUrl: "https://twitch.tv/",
-    hint: "Twitch streaming channel",
-  },
-  {
-    id: "linkedin",
-    label: "LinkedIn",
-    placeholder: "username or https://linkedin.com/in/username",
-    icon: Linkedin,
-    color: "#0A66C2",
-    prefixUrl: "https://linkedin.com/in/",
-    hint: "LinkedIn public profile",
-  },
-  {
-    id: "telegram",
-    label: "Telegram",
-    placeholder: "username or https://t.me/username",
-    icon: Send,
-    color: "#229ED9",
-    prefixUrl: "https://t.me/",
-    hint: "Telegram channel or username",
-  },
-  {
-    id: "soundcloud",
-    label: "SoundCloud",
-    placeholder: "https://soundcloud.com/artist",
-    icon: Radio,
-    color: "#FF5500",
-    prefixUrl: "https://soundcloud.com/",
-    hint: "SoundCloud profile or track URL",
-  },
-  {
-    id: "email",
-    label: "Email",
-    placeholder: "hello@example.com",
-    icon: Mail,
-    color: "#EA4335",
-    hint: "Direct mailto: contact link",
-  },
-  {
-    id: "website",
-    label: "Website",
-    placeholder: "https://mywebsite.com",
-    icon: Globe,
-    color: "#3B82F6",
-    hint: "Personal portfolio, blog, or store",
+    hint: "Twitch channel or username",
   },
 ];
 
 export function getPlatformConfig(platform: string): PlatformConfig {
   const normalized = platform.toLowerCase();
+  if (normalized === "custom") {
+    return {
+      id: "custom",
+      label: "Custom",
+      placeholder: "https://...",
+      icon: Sparkles,
+      color: "#8B5CF6",
+      hint: "Custom icon link",
+    };
+  }
   const found = SUPPORTED_PLATFORMS.find(
     (p) => p.id === normalized || (normalized === "x" && p.id === "twitter"),
   );
-  return (
-    found || {
-      id: "website",
-      label: platform.charAt(0).toUpperCase() + platform.slice(1),
-      placeholder: "https://...",
-      icon: Globe,
-      color: "#3B82F6",
-      hint: "External link",
-    }
-  );
+  if (found) return found;
+
+  // Fallbacks for legacy profile entries
+  if (normalized === "linkedin") {
+    return {
+      id: "linkedin",
+      label: "LinkedIn",
+      placeholder: "username",
+      icon: Linkedin,
+      color: "#0A66C2",
+      hint: "LinkedIn profile",
+    };
+  }
+  if (normalized === "telegram") {
+    return {
+      id: "telegram",
+      label: "Telegram",
+      placeholder: "username",
+      icon: Send,
+      color: "#229ED9",
+      hint: "Telegram channel",
+    };
+  }
+  if (normalized === "soundcloud") {
+    return {
+      id: "soundcloud",
+      label: "SoundCloud",
+      placeholder: "artist",
+      icon: Radio,
+      color: "#FF5500",
+      hint: "SoundCloud profile",
+    };
+  }
+  if (normalized === "email") {
+    return {
+      id: "email",
+      label: "Email",
+      placeholder: "hello@example.com",
+      icon: Mail,
+      color: "#EA4335",
+      hint: "Email address",
+    };
+  }
+
+  return {
+    id: "website",
+    label: platform.charAt(0).toUpperCase() + platform.slice(1),
+    placeholder: "https://...",
+    icon: Globe,
+    color: "#3B82F6",
+    hint: "External link",
+  };
 }
 
-export function formatSocialUrl(platform: SocialPlatform, raw: string): string {
+export function formatSocialUrl(
+  platform: SocialPlatform | string,
+  raw: string,
+): string {
   const val = raw.trim();
   if (!val) return "";
 
@@ -205,6 +219,7 @@ export function formatSocialUrl(platform: SocialPlatform, raw: string): string {
         : `https://open.spotify.com/${val}`;
     case "soundcloud":
       return `https://soundcloud.com/${cleanHandle}`;
+    case "custom":
     case "website":
     default:
       return `https://${val}`;
