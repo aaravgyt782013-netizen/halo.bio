@@ -13,6 +13,9 @@ import {
   Flag,
   Trash2,
   ArrowLeft,
+  X,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import { db, type Profile } from "@/lib/bio";
 import { useAuth, useIsAdmin } from "@/hooks/useAuth";
@@ -21,9 +24,16 @@ export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
       { title: "Staff portal — Halo" },
-      { name: "description", content: "Internal Halo staff portal for user management and moderation." },
+      {
+        name: "description",
+        content:
+          "Internal Halo staff portal for user management and moderation.",
+      },
       { property: "og:title", content: "Staff portal — Halo" },
-      { property: "og:description", content: "Manage users, premium tiers and flagged content." },
+      {
+        property: "og:description",
+        content: "Manage users, premium tiers and flagged content.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -38,6 +48,8 @@ type Stats = {
   total_links: number;
 };
 
+type FilterCategory = "all" | "flagged" | "pro" | "banned";
+
 function AdminPage() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -45,11 +57,17 @@ function AdminPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [q, setQ] = useState("");
+  const [filterTab, setFilterTab] = useState<FilterCategory>("all");
+  const [profileToDelete, setProfileToDelete] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
     const [{ data: rows }, { data: statRows }] = await Promise.all([
-      db.from("profiles").select("*").order("created_at", { ascending: false }).limit(500),
+      db
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500),
       db.rpc("platform_stats"),
     ]);
     setProfiles((rows ?? []) as Profile[]);
@@ -66,7 +84,11 @@ function AdminPage() {
     if (isAdmin === false) setBusy(false);
   }, [isAdmin, load]);
 
-  const mutate = async (id: string, changes: Partial<Profile>, message: string) => {
+  const mutate = async (
+    id: string,
+    changes: Partial<Profile>,
+    message: string,
+  ) => {
     setProfiles((p) => p.map((x) => (x.id === id ? { ...x, ...changes } : x)));
     const { error } = await db.from("profiles").update(changes).eq("id", id);
     if (error) toast.error("Action failed");
@@ -80,13 +102,14 @@ function AdminPage() {
       return;
     }
     setProfiles((p) => p.filter((x) => x.id !== id));
-    toast.success("Profile deleted");
+    setProfileToDelete(null);
+    toast.success("Profile permanently deleted");
   };
 
   if (loading || isAdmin === null || busy) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
@@ -105,9 +128,21 @@ function AdminPage() {
     );
   }
 
-  const filtered = profiles.filter((p) =>
-    `${p.username ?? ""} ${p.display_name ?? ""}`.toLowerCase().includes(q.toLowerCase()),
-  );
+  const flaggedCount = profiles.filter((p) => p.is_flagged).length;
+  const proCount = profiles.filter((p) => p.is_premium).length;
+  const bannedCount = profiles.filter((p) => p.is_banned).length;
+
+  const filtered = profiles.filter((p) => {
+    const matchesQuery = `${p.username ?? ""} ${p.display_name ?? ""}`
+      .toLowerCase()
+      .includes(q.toLowerCase());
+    if (!matchesQuery) return false;
+
+    if (filterTab === "flagged") return p.is_flagged;
+    if (filterTab === "pro") return p.is_premium;
+    if (filterTab === "banned") return p.is_banned;
+    return true;
+  });
 
   return (
     <div className="relative min-h-screen">
@@ -115,8 +150,10 @@ function AdminPage() {
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
         <div>
-          <h1 className="font-display text-lg font-bold">Staff portal</h1>
-          <p className="text-xs text-muted-foreground">Users, tiers and moderation</p>
+          <h1 className="font-display text-xl font-bold">Staff Portal</h1>
+          <p className="text-xs text-muted-foreground">
+            User directory, content moderation & tier management
+          </p>
         </div>
         <Link to="/dashboard" className="btn-ghost">
           <ArrowLeft className="h-4 w-4" /> Builder
@@ -125,63 +162,137 @@ function AdminPage() {
 
       <main className="mx-auto max-w-6xl space-y-6 px-5 pb-20">
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <StatCard icon={Users} label="Total users" value={stats?.total_profiles ?? 0} />
-          <StatCard icon={Users} label="Active profiles" value={stats?.active_profiles ?? 0} />
-          <StatCard icon={Eye} label="Page views" value={stats?.total_views ?? 0} />
-          <StatCard icon={MousePointerClick} label="Link clicks" value={stats?.total_clicks ?? 0} />
-          <StatCard icon={Link2} label="Links created" value={stats?.total_links ?? 0} />
+          <StatCard
+            icon={Users}
+            label="Total users"
+            value={stats?.total_profiles ?? 0}
+          />
+          <StatCard
+            icon={Users}
+            label="Active profiles"
+            value={stats?.active_profiles ?? 0}
+          />
+          <StatCard
+            icon={Eye}
+            label="Page views"
+            value={stats?.total_views ?? 0}
+          />
+          <StatCard
+            icon={MousePointerClick}
+            label="Link clicks"
+            value={stats?.total_clicks ?? 0}
+          />
+          <StatCard
+            icon={Link2}
+            label="Links created"
+            value={stats?.total_links ?? 0}
+          />
         </section>
 
-        <section className="glass-panel p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search username or name"
-              aria-label="Search users"
-              className="flex-1 bg-transparent text-sm outline-none"
-            />
+        <section className="glass-panel p-5 sm:p-6 shadow-lift">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between mb-4">
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-input bg-card px-4 py-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search username or display name…"
+                aria-label="Search users"
+                className="flex-1 bg-transparent text-sm outline-none"
+              />
+            </div>
+
+            {/* Filter buttons */}
+            <div className="flex rounded-xl bg-secondary/80 p-1 gap-1">
+              {(
+                [
+                  ["all", `All (${profiles.length})`],
+                  ["flagged", `Flagged (${flaggedCount})`],
+                  ["pro", `Pro (${proCount})`],
+                  ["banned", `Banned (${bannedCount})`],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilterTab(key)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    filterTab === key
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {filtered.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">No users found.</p>
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No profiles match your filter criteria.
+              </div>
             )}
             {filtered.map((p) => (
               <div
                 key={p.id}
-                className="surface flex flex-wrap items-center gap-3 p-3"
+                className="surface flex flex-wrap items-center gap-3 p-3.5 rounded-xl border border-border/70"
               >
-                <div className="h-10 w-10 overflow-hidden rounded-full bg-secondary">
-                  {p.avatar_url && (
-                    <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
+                <div className="h-10 w-10 overflow-hidden rounded-full bg-secondary shrink-0">
+                  {p.avatar_url ? (
+                    <img
+                      src={p.avatar_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-bold text-xs text-muted-foreground">
+                      {(p.display_name ?? p.username ?? "?")
+                        .slice(0, 1)
+                        .toUpperCase()}
+                    </div>
                   )}
                 </div>
                 <div className="min-w-40 flex-1">
-                  <p className="text-sm font-semibold">
-                    {p.username ? `@${p.username}` : "— no username —"}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold">
+                      {p.username ? `@${p.username}` : "— no username —"}
+                    </span>
                     {p.is_premium && (
-                      <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                         PRO
                       </span>
                     )}
                     {p.is_banned && (
-                      <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                      <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                         BANNED
                       </span>
                     )}
                     {p.is_flagged && (
-                      <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
+                      <span className="rounded-full bg-amber-500/15 text-amber-600 px-2 py-0.5 text-[10px] font-bold">
                         FLAGGED
                       </span>
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.display_name ?? "unnamed"} · {p.views} views
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {p.display_name ?? "unnamed"} · {p.views || 0} views
                   </p>
                 </div>
+
                 <div className="flex flex-wrap items-center gap-1.5">
+                  {p.username && (
+                    <Link
+                      to="/$username"
+                      params={{ username: p.username }}
+                      target="_blank"
+                      className="btn-ghost p-2 text-muted-foreground hover:text-foreground"
+                      title="View public profile"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  )}
+
                   <IconAction
                     icon={Crown}
                     label={p.is_premium ? "Remove Pro" : "Grant Pro"}
@@ -220,20 +331,19 @@ function AdminPage() {
                   />
                   {p.avatar_url && (
                     <button
-                      onClick={() => mutate(p.id, { avatar_url: null }, "Avatar removed")}
-                      className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold hover:bg-accent"
+                      onClick={() =>
+                        mutate(p.id, { avatar_url: null }, "Avatar removed")
+                      }
+                      className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-semibold hover:bg-accent"
                     >
-                      Remove avatar
+                      Reset avatar
                     </button>
                   )}
                   <IconAction
                     icon={Trash2}
                     label="Delete profile"
                     destructive
-                    onClick={() => {
-                      if (window.confirm(`Delete profile ${p.username ?? p.id}?`))
-                        void removeProfile(p.id);
-                    }}
+                    onClick={() => setProfileToDelete(p)}
                   />
                 </div>
               </div>
@@ -241,6 +351,52 @@ function AdminPage() {
           </div>
         </section>
       </main>
+
+      {/* Confirmation Modal for Profile Deletion */}
+      {profileToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-float-in">
+          <div className="glass-panel w-full max-w-sm p-6 shadow-lift relative">
+            <button
+              type="button"
+              onClick={() => setProfileToDelete(null)}
+              className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2 text-destructive mb-2">
+              <AlertTriangle className="h-5 w-5" />
+              <h3 className="font-display text-lg font-bold">
+                Delete Profile?
+              </h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to permanently delete profile{" "}
+              <strong className="text-foreground">
+                @{profileToDelete.username ?? profileToDelete.id}
+              </strong>
+              ? This action cannot be undone and deletes all associated links.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setProfileToDelete(null)}
+                className="btn-ghost text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => removeProfile(profileToDelete.id)}
+                className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:opacity-90"
+              >
+                Delete Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -257,7 +413,9 @@ function StatCard({
   return (
     <div className="glass-panel p-4">
       <Icon className="h-4 w-4 text-primary" />
-      <p className="mt-2 font-display text-2xl font-bold">{value.toLocaleString()}</p>
+      <p className="mt-2 font-display text-2xl font-bold">
+        {value.toLocaleString()}
+      </p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );

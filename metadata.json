@@ -1,0 +1,6 @@
+{
+  "name": "Halo — Media-rich link in bio pages",
+  "description": "Build a premium link-in-bio page with video backgrounds, auto-play music and frosted glass styling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

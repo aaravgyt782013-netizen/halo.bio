@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sparkles, Music4, Video, Palette, ShieldCheck, ArrowRight } from "lucide-react";
+import {
+  Sparkles,
+  Music4,
+  Video,
+  Palette,
+  ShieldCheck,
+  ArrowRight,
+} from "lucide-react";
 import { normalizeUsername } from "@/lib/bio";
 
 export const Route = createFileRoute("/")({
@@ -54,7 +61,9 @@ function Landing() {
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
-        <span className="font-display text-lg font-bold tracking-tight">halo.bio</span>
+        <span className="font-display text-lg font-bold tracking-tight">
+          halo.bio
+        </span>
         <nav className="flex items-center gap-2">
           <Link to="/auth" className="btn-ghost">
             Log in
@@ -77,25 +86,45 @@ function Landing() {
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground">
-            Video backgrounds, ambient music, buttery animations and a builder with a real-time
-            phone preview. Claim your handle in seconds.
+            Video backgrounds, ambient music, buttery animations and a builder
+            with a real-time phone preview. Claim your handle in seconds.
           </p>
 
           <form
             className="glass mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full p-1.5 pl-4"
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (username) {
+                try {
+                  sessionStorage.setItem("halo:desired-username", username);
+                } catch {
+                  // ignore
+                }
+              }
+            }}
           >
-            <span className="text-sm text-muted-foreground">halo.bio/</span>
+            <span className="text-sm font-semibold text-muted-foreground">
+              halo.bio/
+            </span>
             <input
               value={username}
               onChange={(e) => setUsername(normalizeUsername(e.target.value))}
               placeholder="yourname"
               aria-label="Choose your username"
-              className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none text-foreground placeholder:text-muted-foreground/60"
             />
             <Link
               to="/auth"
               search={{ mode: "signup", u: username || undefined }}
+              onClick={() => {
+                if (username) {
+                  try {
+                    sessionStorage.setItem("halo:desired-username", username);
+                  } catch {
+                    // ignore
+                  }
+                }
+              }}
               className="btn-primary shrink-0"
             >
               Claim <ArrowRight className="h-4 w-4" />
@@ -107,7 +136,9 @@ function Landing() {
           {FEATURES.map((f) => (
             <article key={f.title} className="glass-panel p-6">
               <f.icon className="h-6 w-6 text-primary" />
-              <h2 className="mt-4 font-display text-base font-semibold">{f.title}</h2>
+              <h2 className="mt-4 font-display text-base font-semibold">
+                {f.title}
+              </h2>
               <p className="mt-1.5 text-sm text-muted-foreground">{f.body}</p>
             </article>
           ))}

@@ -1,18 +1,16 @@
 import { useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import { db, type Profile } from "@/lib/bio";
+import { auth, db, type Profile, type AuthSession } from "@/lib/bio";
 
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data }) => {
+    auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
     });
@@ -34,18 +32,35 @@ export function useMyProfile(userId: string | undefined) {
     }
     let cancelled = false;
     setLoading(true);
-    db.from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle()
-      .then(({ data }: { data: Profile | null }) => {
-        if (!cancelled) {
-          setProfile(data ?? null);
-          setLoading(false);
-        }
-      });
+
+    const loadProfile = () => {
+      db.from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle()
+        .then(({ data }: { data: Profile | null }) => {
+          if (!cancelled) {
+            setProfile(data ?? null);
+            setLoading(false);
+          }
+        });
+    };
+
+    loadProfile();
+
+    const handleUpdate = () => {
+      loadProfile();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("halo-store-updated", handleUpdate);
+    }
+
     return () => {
       cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("halo-store-updated", handleUpdate);
+      }
     };
   }, [userId]);
 
