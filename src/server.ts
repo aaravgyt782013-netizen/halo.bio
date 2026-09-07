@@ -18,7 +18,8 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then(
+    serverEntryPromise = // @ts-ignore
+      import("@tanstack/react-start/server-entry").then(
       (m) => (m.default ?? m) as ServerEntry,
     );
   }
@@ -71,17 +72,13 @@ function parseCookies(cookieHeader: string | null): Record<string, string> {
   return cookies;
 }
 
-export function getSessionFromRequest(request: Request): {
-  token: string;
-  userId: string;
-  role: "admin" | "user";
-} | null {
+export async function getSessionFromRequest(request: Request): Promise<{ token: string; userId: string; role: "admin" | "user"; } | null> {
   const cookieHeader = request.headers.get("cookie");
   const cookies = parseCookies(cookieHeader);
   const token = cookies["halo_session"];
   if (!token) return null;
 
-  const session = serverStorage.getSession(token);
+  const session = await serverStorage.getSession(token);
   if (!session) return null;
 
   return {
@@ -246,7 +243,7 @@ export default {
               );
             }
 
-            const existing = serverStorage.getUserByEmail(email);
+            const existing = await serverStorage.getUserByEmail(email);
             if (existing) {
               return jsonResponse(
                 { error: "An account with this email already exists" },
@@ -255,13 +252,13 @@ export default {
             }
 
             const passwordHash = hashPasswordServer(password);
-            const { user } = serverStorage.createUser({
+            const { user } = await serverStorage.createUser({
               email,
               passwordHash,
               full_name: fullName,
             });
 
-            const session = serverStorage.createSession(user.id, user.role);
+            const session = await serverStorage.createSession(user.id, user.role);
             const cookie = createSessionCookie(session.token, request);
 
             return jsonResponse(
@@ -302,7 +299,7 @@ export default {
               );
             }
 
-            const user = serverStorage.getUserByEmail(email);
+            const user = await serverStorage.getUserByEmail(email);
             const verifyResult = user
               ? verifyPasswordServer(password, user.password)
               : { valid: false, needsRehash: false };
@@ -322,13 +319,13 @@ export default {
 
             // Rehash legacy hash if needed
             if (verifyResult.needsRehash) {
-              serverStorage.updateUserPassword(
+              await serverStorage.updateUserPassword(
                 user.id,
                 hashPasswordServer(password),
               );
             }
 
-            const session = serverStorage.createSession(user.id, user.role);
+            const session = await serverStorage.createSession(user.id, user.role);
             const cookie = createSessionCookie(session.token, request);
 
             return jsonResponse(
@@ -350,20 +347,20 @@ export default {
         }
 
         if (url.pathname === "/api/auth/logout" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (session) {
-            serverStorage.revokeSession(session.token);
+            await serverStorage.revokeSession(session.token);
           }
           const cookie = clearSessionCookie(request);
           return jsonResponse({ success: true }, 200, { "Set-Cookie": cookie });
         }
 
         if (url.pathname === "/api/auth/me" && method === "GET") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session) {
             return jsonResponse({ user: null, session: null });
           }
-          const user = serverStorage.getUserById(session.userId);
+          const user = await serverStorage.getUserById(session.userId);
           if (!user) {
             return jsonResponse({ user: null, session: null });
           }
@@ -383,7 +380,7 @@ export default {
 
         // --- PASSWORD CHANGE ---
         if (url.pathname === "/api/change-password" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session) {
             return jsonResponse({ error: "Unauthorized" }, 401);
           }
@@ -399,7 +396,7 @@ export default {
               );
             }
 
-            const user = serverStorage.getUserById(session.userId);
+            const user = await serverStorage.getUserById(session.userId);
             if (!user) return jsonResponse({ error: "User not found" }, 404);
 
             const verified = verifyPasswordServer(
@@ -414,7 +411,7 @@ export default {
             }
 
             const newHash = hashPasswordServer(newPassword);
-            serverStorage.updateUserPassword(user.id, newHash);
+            await serverStorage.updateUserPassword(user.id, newHash);
             return jsonResponse({ success: true });
           } catch {
             return jsonResponse({ error: "Failed to change password" }, 400);
@@ -423,7 +420,7 @@ export default {
 
         // --- ADMIN ENDPOINTS ---
         if (url.pathname === "/api/admin/set-role" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session || session.role !== "admin") {
             return jsonResponse({ error: "Admin access required" }, 403);
           }
@@ -434,7 +431,7 @@ export default {
             if (!targetUserId || !["admin", "user"].includes(role)) {
               return jsonResponse({ error: "Invalid role payload" }, 400);
             }
-            serverStorage.updateUserRole(targetUserId, role);
+            await serverStorage.updateUserRole(targetUserId, role);
             return jsonResponse({ success: true });
           } catch {
             return jsonResponse({ error: "Failed to update role" }, 400);
@@ -442,7 +439,7 @@ export default {
         }
 
         if (url.pathname === "/api/admin/profile-mutate" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session || session.role !== "admin") {
             return jsonResponse({ error: "Admin access required" }, 403);
           }
@@ -450,7 +447,7 @@ export default {
             const body = await request.json();
             const targetUserId = String(body.targetUserId || "");
             const changes = body.changes || {};
-            const result = serverStorage.adminMutateProfile(
+            const result = await serverStorage.adminMutateProfile(
               targetUserId,
               changes,
             );
@@ -464,14 +461,14 @@ export default {
         }
 
         if (url.pathname === "/api/admin/delete-profile" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session || session.role !== "admin") {
             return jsonResponse({ error: "Admin access required" }, 403);
           }
           try {
             const body = await request.json();
             const targetUserId = String(body.targetUserId || "");
-            const result = serverStorage.adminDeleteProfile(targetUserId);
+            const result = await serverStorage.adminDeleteProfile(targetUserId);
             if (!result.success) {
               return jsonResponse(result, 404);
             }
@@ -482,23 +479,23 @@ export default {
         }
 
         if (url.pathname === "/api/admin/profiles" && method === "GET") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session || session.role !== "admin") {
             return jsonResponse({ error: "Admin access required" }, 403);
           }
-          const profiles = serverStorage.getAllProfilesAdmin(true);
+          const profiles = await serverStorage.getAllProfilesAdmin(true);
           return jsonResponse({ profiles });
         }
 
         // --- AUTHENTICATED USER DATA SYNC ---
         if (url.pathname === "/api/sync" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session) {
             return jsonResponse({ error: "Unauthorized" }, 401);
           }
           try {
             const body = await request.json();
-            const result = serverStorage.syncUser(
+            const result = await serverStorage.syncUser(
               session.userId,
               session.role === "admin",
               body,
@@ -511,11 +508,11 @@ export default {
 
         // --- AUTHENTICATED SAFE STORE ACCESS ---
         if (url.pathname === "/api/store" && method === "GET") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session) {
             return jsonResponse({ error: "Unauthorized" }, 401);
           }
-          const data = serverStorage.getCallerStore(
+          const data = await serverStorage.getCallerStore(
             session.userId,
             session.role === "admin",
           );
@@ -526,12 +523,12 @@ export default {
         if (url.pathname === "/api/username-available" && method === "GET") {
           const username = url.searchParams.get("username") || "";
           const userId = url.searchParams.get("userId") || undefined;
-          const result = serverStorage.isUsernameAvailable(username, userId);
+          const result = await serverStorage.isUsernameAvailable(username, userId);
           return jsonResponse(result);
         }
 
         if (url.pathname === "/api/claim" && method === "POST") {
-          const session = getSessionFromRequest(request);
+          const session = await getSessionFromRequest(request);
           if (!session) {
             return jsonResponse({ error: "Unauthorized" }, 401);
           }
@@ -551,7 +548,7 @@ export default {
               );
             }
 
-            const result = serverStorage.claimUsername(
+            const result = await serverStorage.claimUsername(
               targetUserId || session.userId,
               username,
             );
@@ -572,7 +569,7 @@ export default {
           try {
             const body = await request.json();
             const username = String(body.username || "");
-            const result = serverStorage.recordView(username, clientIp);
+            const result = await serverStorage.recordView(username, clientIp);
             return jsonResponse(result);
           } catch {
             return jsonResponse({ error: "Failed to record view" }, 400);
@@ -583,7 +580,7 @@ export default {
           try {
             const body = await request.json();
             const linkId = String(body.linkId || "");
-            const result = serverStorage.recordClick(linkId, clientIp);
+            const result = await serverStorage.recordClick(linkId, clientIp);
             return jsonResponse(result);
           } catch {
             return jsonResponse({ error: "Failed to record click" }, 400);
@@ -595,13 +592,13 @@ export default {
           const username = decodeURIComponent(
             url.pathname.slice("/api/profile/".length),
           );
-          const res = serverStorage.getProfile(username);
+          const res = await serverStorage.getProfile(username);
           if (!res) return jsonResponse({ error: "Profile not found" }, 404);
           return jsonResponse(res);
         }
 
         if (url.pathname === "/api/stats") {
-          return jsonResponse(serverStorage.getStats());
+          return jsonResponse(await serverStorage.getStats());
         }
       }
 
