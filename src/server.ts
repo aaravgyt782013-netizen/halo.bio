@@ -179,10 +179,16 @@ export default {
         const clientIp = getClientIp(request);
         const method = request.method.toUpperCase();
 
-        // 1. Request Body Size Guard (max 2MB)
+        // 1. Request Body Size Guard (max 4.5MB for Vercel/serverless compatibility)
         const contentLength = request.headers.get("content-length");
-        if (contentLength && parseInt(contentLength, 10) > 2 * 1024 * 1024) {
-          return jsonResponse({ error: "Payload too large" }, 413);
+        if (contentLength && parseInt(contentLength, 10) > 4.5 * 1024 * 1024) {
+          return jsonResponse(
+            {
+              error:
+                "Payload too large. Please use a smaller file or compressed image.",
+            },
+            413,
+          );
         }
 
         // 2. CSRF Protection for state-changing requests

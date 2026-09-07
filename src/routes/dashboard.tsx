@@ -34,6 +34,7 @@ import {
   auth,
   db,
   ensureProtocol,
+  optimizeImageDataUrl,
   uploadMedia,
   type BioLink,
   type Profile,
@@ -247,36 +248,80 @@ function Dashboard() {
   const saveProfile = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await db
-      .from("profiles")
-      .update({
-        id: profile.id,
-        username: profile.username,
-        display_name: profile.display_name,
-        bio: profile.bio,
-        avatar_url: profile.avatar_url,
-        background_type: profile.background_type,
-        background_value: profile.background_value,
-        card_opacity: profile.card_opacity,
-        card_radius: profile.card_radius,
-        card_blur: profile.card_blur,
-        accent_color: profile.accent_color,
-        music_url: profile.music_url,
-        music_enabled: profile.music_enabled,
-        enter_text: profile.enter_text,
-      })
-      .eq("id", profile.id);
 
-    setSaving(false);
-    if (error) {
+    try {
+      let finalBgValue = profile.background_value;
+      let finalAvatarUrl = profile.avatar_url;
+
+      // Auto-compress background image if it is an oversized data URL
+      if (
+        profile.background_type === "image" &&
+        finalBgValue?.startsWith("data:image/") &&
+        finalBgValue.length > 200 * 1024
+      ) {
+        finalBgValue = await optimizeImageDataUrl(finalBgValue, "background");
+      }
+
+      // Auto-compress avatar image if large
+      if (
+        finalAvatarUrl?.startsWith("data:image/") &&
+        finalAvatarUrl.length > 50 * 1024
+      ) {
+        finalAvatarUrl = await optimizeImageDataUrl(finalAvatarUrl, "avatar");
+      }
+
+      if (
+        finalBgValue !== profile.background_value ||
+        finalAvatarUrl !== profile.avatar_url
+      ) {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                background_value: finalBgValue,
+                avatar_url: finalAvatarUrl,
+              }
+            : prev,
+        );
+      }
+
+      const { error } = await db
+        .from("profiles")
+        .update({
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          bio: profile.bio,
+          avatar_url: finalAvatarUrl,
+          background_type: profile.background_type,
+          background_value: finalBgValue,
+          card_opacity: profile.card_opacity,
+          card_radius: profile.card_radius,
+          card_blur: profile.card_blur,
+          accent_color: profile.accent_color,
+          music_url: profile.music_url,
+          music_enabled: profile.music_enabled,
+          enter_text: profile.enter_text,
+        })
+        .eq("id", profile.id);
+
+      setSaving(false);
+      if (error) {
+        toast.error(
+          "Could not save changes: " +
+            (error.message || "Please check connection"),
+        );
+      } else {
+        setIsDirty(false);
+        notifyStoreUpdated();
+        toast.success("Page updated successfully! Live page is synced.");
+      }
+    } catch (err) {
+      setSaving(false);
       toast.error(
         "Could not save changes: " +
-          (error.message || "Please check connection"),
+          (err instanceof Error ? err.message : "Network error"),
       );
-    } else {
-      setIsDirty(false);
-      notifyStoreUpdated();
-      toast.success("Page updated successfully! Live page is synced.");
     }
   };
 

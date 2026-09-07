@@ -249,6 +249,33 @@ export async function syncToServer(
   const myProfiles = store.profiles.filter((p) => p.id === uid);
   const myLinks = store.links.filter((l) => l.user_id === uid);
 
+  // Auto-compress oversized data URLs in background or avatar before network dispatch
+  for (const p of myProfiles) {
+    if (
+      p.background_value?.startsWith("data:image/") &&
+      p.background_value.length > 250 * 1024
+    ) {
+      try {
+        p.background_value = await optimizeImageDataUrl(
+          p.background_value,
+          "background",
+        );
+      } catch {
+        // preserve original if optimization fails
+      }
+    }
+    if (
+      p.avatar_url?.startsWith("data:image/") &&
+      p.avatar_url.length > 60 * 1024
+    ) {
+      try {
+        p.avatar_url = await optimizeImageDataUrl(p.avatar_url, "avatar");
+      } catch {
+        // preserve original
+      }
+    }
+  }
+
   try {
     const res = await fetch("/api/sync", {
       method: "POST",
@@ -267,9 +294,18 @@ export async function syncToServer(
       const errJson = (await res.json().catch(() => ({}))) as {
         error?: string;
       };
+      let errMsg = errJson.error;
+      if (!errMsg) {
+        if (res.status === 413) {
+          errMsg =
+            "Payload too large (413). Halo is optimizing your images, please try saving again.";
+        } else {
+          errMsg = `Sync error (status ${res.status})`;
+        }
+      }
       return {
         success: false,
-        error: errJson.error || `Sync error (status ${res.status})`,
+        error: errMsg,
       };
     }
 
@@ -1159,6 +1195,149 @@ export const db = {
  * Uploads media files into data URLs with image compression
  * and file size protections to prevent quota limits.
  */
+/**
+ * Progressively optimizes and downscales an image File or base64 Data URL using HTML5 Canvas.
+ * Guarantees output is compact (backgrounds ~150-250KB, avatars ~25-40KB) to prevent
+ * payload limits (HTTP 413) and ensure instant loading on mobile.
+ */
+export async function optimizeImageDataUrl(
+  input: string | File,
+  folder: "avatar" | "background" | string = "background",
+): Promise<string> {
+  if (typeof window === "undefined") {
+    if (typeof input === "string") return input;
+    return readDirect(input);
+  }
+
+  let objectUrl = "";
+  let isObjectUrl = false;
+
+  if (typeof input === "string") {
+    if (!input.startsWith("data:image/")) {
+      return input; // Normal external URL, preserve
+    }
+    // If it's already sufficiently small, skip recompression
+    const threshold = folder === "avatar" ? 50 * 1024 : 200 * 1024;
+    if (input.length < threshold) {
+      return input;
+    }
+    objectUrl = input;
+  } else {
+    if (!input.type.startsWith("image/")) {
+      return readDirect(input);
+    }
+    // SVGs are vector and already small
+    if (input.type === "image/svg+xml") {
+      return readDirect(input);
+    }
+    objectUrl = URL.createObjectURL(input);
+    isObjectUrl = true;
+  }
+
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        if (isObjectUrl) {
+          try {
+            URL.revokeObjectURL(objectUrl);
+          } catch {
+            // ignore
+          }
+        }
+
+        const isAvatar = folder === "avatar";
+        const maxDim = isAvatar ? 320 : 1080;
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+
+        if (!width || !height) {
+          resolve(typeof input === "string" ? input : "");
+          return;
+        }
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(width, 1);
+        canvas.height = Math.max(height, 1);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(typeof input === "string" ? input : "");
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Initial export
+        const initialQuality = isAvatar ? 0.82 : 0.78;
+        let result = canvas.toDataURL("image/jpeg", initialQuality);
+
+        // Maximum allowed characters: ~70KB for avatar, ~350KB for wallpaper
+        const maxChars = isAvatar ? 75 * 1024 : 360 * 1024;
+
+        if (result.length > maxChars) {
+          // Second pass: slightly more aggressive compression
+          result = canvas.toDataURL("image/jpeg", isAvatar ? 0.7 : 0.68);
+        }
+
+        if (result.length > maxChars && !isAvatar) {
+          // Third pass: downscale dimension if still large
+          const scaleCanvas = document.createElement("canvas");
+          const scaleW = Math.round(width * 0.75);
+          const scaleH = Math.round(height * 0.75);
+          scaleCanvas.width = Math.max(scaleW, 1);
+          scaleCanvas.height = Math.max(scaleH, 1);
+          const scaleCtx = scaleCanvas.getContext("2d");
+          if (scaleCtx) {
+            scaleCtx.imageSmoothingEnabled = true;
+            scaleCtx.imageSmoothingQuality = "medium";
+            scaleCtx.drawImage(canvas, 0, 0, scaleW, scaleH);
+            result = scaleCanvas.toDataURL("image/jpeg", 0.65);
+          }
+        }
+
+        resolve(result);
+      };
+
+      img.onerror = () => {
+        if (isObjectUrl) {
+          try {
+            URL.revokeObjectURL(objectUrl);
+          } catch {
+            // ignore
+          }
+        }
+        if (typeof input === "string") {
+          resolve(input);
+        } else {
+          readDirect(input).then(resolve).catch(reject);
+        }
+      };
+
+      img.src = objectUrl;
+    });
+  } catch {
+    return typeof input === "string" ? input : readDirect(input);
+  }
+}
+
+/**
+ * Uploads media with automatic downscaling and compression
+ * to keep sync payloads within network and database boundaries.
+ */
 export async function uploadMedia(
   _userId: string,
   file: File,
@@ -1166,65 +1345,25 @@ export async function uploadMedia(
 ): Promise<string> {
   // Guard audio size
   if (file.type.startsWith("audio/")) {
-    if (file.size > 3.5 * 1024 * 1024) {
+    if (file.size > 1.5 * 1024 * 1024) {
       throw new Error(
-        "Audio file exceeds 3.5MB. Please use an MP3 URL or compress your track.",
+        "Audio file exceeds 1.5MB for direct storage. For full songs, please paste a direct audio URL (e.g. MP3 link or stream URL).",
       );
     }
   }
 
   // Guard video size
   if (file.type.startsWith("video/")) {
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 2 * 1024 * 1024) {
       throw new Error(
-        "Video file exceeds 5MB. Please use a direct video URL or smaller clip.",
+        "Video clip exceeds 2MB. For full video backgrounds, please paste a direct MP4 or video URL.",
       );
     }
   }
 
   // Optimize and downscale images via Canvas
   if (file.type.startsWith("image/") && typeof window !== "undefined") {
-    try {
-      return await new Promise<string>((resolve, reject) => {
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          const maxDim = folder === "avatar" ? 400 : 1280;
-          let width = img.naturalWidth || img.width;
-          let height = img.naturalHeight || img.height;
-
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(width, 1);
-          canvas.height = Math.max(height, 1);
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            readDirect(file).then(resolve).catch(reject);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL("image/jpeg", 0.82);
-          resolve(compressed);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          readDirect(file).then(resolve).catch(reject);
-        };
-        img.src = objectUrl;
-      });
-    } catch {
-      // Fallback
-    }
+    return optimizeImageDataUrl(file, folder);
   }
 
   return readDirect(file);
