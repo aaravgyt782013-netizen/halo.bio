@@ -279,6 +279,74 @@ export default {
           }
         }
 
+        
+        if (url.pathname === "/api/auth/google" && method === "POST") {
+          try {
+            const body = await request.json();
+            const idToken = body.idToken;
+            if (!idToken) return jsonResponse({ error: "No ID token provided" }, 400);
+
+            let apiKey = "";
+            try {
+              // Read from process.cwd() / firebase-applet-config.json
+              const path = await import("node:path");
+              const fsNode = await import("node:fs");
+              const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+              const fbConfig = JSON.parse(fsNode.readFileSync(configPath, "utf-8"));
+              apiKey = fbConfig.apiKey;
+            } catch (e) {
+              console.warn("Could not load API key for Google verification", e);
+            }
+
+            if (!apiKey) return jsonResponse({ error: "Firebase config not found on server" }, 500);
+
+            const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok || !verifyData.users || verifyData.users.length === 0) {
+              return jsonResponse({ error: "Invalid Google token" }, 401);
+            }
+
+            const googleUser = verifyData.users[0];
+            const email = googleUser.email.toLowerCase().trim();
+            const fullName = googleUser.displayName || email.split("@")[0];
+
+            let user = await serverStorage.getUserByEmail(email);
+            if (!user) {
+               const { user: newUser } = await serverStorage.createUser({
+                 email,
+                 passwordHash: "oauth:google:" + googleUser.localId,
+                 full_name: fullName
+               });
+               user = newUser;
+            }
+
+            const session = await serverStorage.createSession(user.id, user.role);
+            const cookie = createSessionCookie(session.token, request);
+
+            return jsonResponse(
+              {
+                success: true,
+                user: {
+                  id: user.id,
+                  email: user.email,
+                  full_name: user.full_name,
+                  role: user.role,
+                }
+              },
+              200,
+              { "set-cookie": cookie }
+            );
+          } catch (err) {
+            console.error(err);
+            return jsonResponse({ error: "Failed to log in with Google" }, 500);
+          }
+        }
+
         if (url.pathname === "/api/auth/login" && method === "POST") {
           try {
             const body = await request.json();

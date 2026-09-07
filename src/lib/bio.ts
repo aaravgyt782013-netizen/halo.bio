@@ -353,6 +353,64 @@ export const auth = {
     }
   },
 
+
+  async signInWithGoogle(): Promise<{
+    data: { user: AuthUser | null; session: AuthSession | null };
+    error: Error | null;
+  }> {
+    try {
+      const { signInWithPopup, GoogleAuthProvider } = await import("firebase/auth");
+      const { firebaseAuth } = await import("./firebase");
+      
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(firebaseAuth, provider);
+      const idToken = await result.user.getIdToken();
+      
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...CSRF_HEADER,
+        },
+        credentials: "include",
+        body: JSON.stringify({ idToken }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          data: { user: null, session: null },
+          error: new Error(json.error || "Failed to log in with Google"),
+        };
+      }
+
+      const authUser: AuthUser = {
+        id: json.user.id,
+        email: json.user.email,
+        role: json.user.role,
+        user_metadata: { full_name: json.user.full_name },
+      };
+
+      const session: AuthSession = {
+        access_token: "server-cookie-session",
+        user: authUser,
+      };
+
+      memoryStore.session = session;
+      authListeners.forEach((cb) => cb("SIGNED_IN", session));
+
+      return {
+        data: { user: authUser, session },
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        data: { user: null, session: null },
+        error: err instanceof Error ? err : new Error(err.message || "Failed to authenticate with Google"),
+      };
+    }
+  },
+
   async signInWithPassword({
     email,
     password,
