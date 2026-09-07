@@ -1,19 +1,97 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Profile, BioLink, StoredUser } from "../lib/bio";
+import { generateSessionToken, hashPasswordServer } from "./crypto";
+
+export type Profile = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  background_type: "color" | "image" | "video";
+  background_value: string;
+  card_opacity: number;
+  card_radius: number;
+  card_blur: number;
+  accent_color: string;
+  music_url: string | null;
+  music_enabled: boolean;
+  enter_text: string;
+  is_premium: boolean;
+  is_banned: boolean;
+  is_flagged: boolean;
+  views: number;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type BioLink = {
+  id: string;
+  user_id: string;
+  title: string;
+  url: string;
+  position: number;
+  clicks: number;
+  created_at?: string;
+};
+
+export type StoredUser = {
+  id: string;
+  email: string;
+  password: string; // PBKDF2 hash: <salt>:<hash>
+  full_name: string;
+  role: "admin" | "user";
+  created_at: string;
+};
+
+export type ServerSession = {
+  token: string;
+  user_id: string;
+  role: "admin" | "user";
+  created_at: string;
+  expires_at: string;
+};
+
+export type PublicProfile = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  background_type: "color" | "image" | "video";
+  background_value: string;
+  card_opacity: number;
+  card_radius: number;
+  card_blur: number;
+  accent_color: string;
+  music_url: string | null;
+  music_enabled: boolean;
+  enter_text: string;
+  is_premium: boolean;
+  is_banned?: boolean;
+  is_flagged?: boolean;
+  views: number;
+  created_at: string;
+  updated_at?: string;
+};
 
 export type ServerData = {
   users: StoredUser[];
   profiles: Profile[];
   links: BioLink[];
-  viewed_ips: Record<string, string[]>; // username -> array of IP addresses that viewed
+  sessions: ServerSession[];
+  viewed_ips: Record<string, string[]>; // username -> array of unique IP addresses
+  view_cooldowns: Record<string, number>; // key: `${cleanIp}:${cleanUsername}` -> timestamp
+  click_cooldowns: Record<string, number>; // key: `${cleanIp}:${linkId}` -> timestamp
 };
 
+// Seed users with PBKDF2-SHA512 hashes for 'password123'
 const SEED_USERS: StoredUser[] = [
   {
     id: "usr-staff-admin",
     email: "staff@gmail.com",
-    password: "password123",
+    password:
+      "fc1f6793e96e7be88d1fabb21494346f:67c468a2d816b2014225570f31961403f6b41fc5727c5eadaea70bbc987a72b881301d1d547a11d834e22c7d2270912abeba5a3bfe5ea82b19aa78ecf70bb4f2",
     full_name: "Halo Staff",
     role: "admin",
     created_at: "2026-01-01T00:00:00Z",
@@ -21,7 +99,8 @@ const SEED_USERS: StoredUser[] = [
   {
     id: "usr-alex-creator",
     email: "alex@halo.bio",
-    password: "password123",
+    password:
+      "569ab796e402513136a01c53e95acbe0:49f9e90694aec90639ea2975ef2010c33cd6b7a41b2ad3f6d834759fdde4c64b7ca701662aa6d3d9e7fe8f2bb535776f594ef15a31d8a6b228a5b0ae51669781",
     full_name: "Alex Rivera",
     role: "user",
     created_at: "2026-02-15T00:00:00Z",
@@ -143,7 +222,10 @@ const memoryServerStore: ServerData = {
   users: [...SEED_USERS],
   profiles: [...SEED_PROFILES],
   links: [...SEED_LINKS],
+  sessions: [],
   viewed_ips: {},
+  view_cooldowns: {},
+  click_cooldowns: {},
 };
 
 let isStoreLoaded = false;
@@ -166,7 +248,24 @@ function ensureLoaded(): ServerData {
         memoryServerStore.links = parsed.links?.length
           ? parsed.links
           : [...SEED_LINKS];
+        memoryServerStore.sessions = Array.isArray(parsed.sessions)
+          ? parsed.sessions
+          : [];
         memoryServerStore.viewed_ips = parsed.viewed_ips || {};
+        memoryServerStore.view_cooldowns = parsed.view_cooldowns || {};
+        memoryServerStore.click_cooldowns = parsed.click_cooldowns || {};
+
+        // Migrate any unhashed passwords for staff/alex
+        let upgraded = false;
+        for (const u of memoryServerStore.users) {
+          if (u.password === "password123") {
+            u.password = hashPasswordServer("password123");
+            upgraded = true;
+          }
+        }
+        if (upgraded) {
+          persist();
+        }
       } else {
         persist();
       }
@@ -198,71 +297,311 @@ export const RESERVED_SYSTEM_NAMES = new Set([
   "dashboard",
   "claim",
   "auth",
+  "admin",
+  "settings",
+  "profile",
+  "halo",
+  "root",
+  "system",
   "login",
   "signup",
-  "register",
-  "settings",
-  "admin",
-  "staff",
+  "logout",
   "help",
   "support",
   "terms",
   "privacy",
-  "static",
-  "assets",
-  "favicon",
-  "robots",
 ]);
 
+function sanitizeSafeUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (/^(javascript|vbscript|file):/i.test(trimmed)) {
+    return "";
+  }
+  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/")) {
+    return "";
+  }
+  return trimmed;
+}
+
 export const serverStorage = {
-  getData(): ServerData {
-    return ensureLoaded();
+  // Session Management
+  createSession(userId: string, role: "admin" | "user"): ServerSession {
+    const data = ensureLoaded();
+    const token = generateSessionToken();
+    const now = new Date();
+    const expiresAt = new Date(
+      now.getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const session: ServerSession = {
+      token,
+      user_id: userId,
+      role,
+      created_at: now.toISOString(),
+      expires_at: expiresAt,
+    };
+
+    data.sessions.push(session);
+    persist();
+    return session;
+  },
+
+  getSession(token: string): ServerSession | null {
+    if (!token) return null;
+    const data = ensureLoaded();
+    const idx = data.sessions.findIndex((s) => s.token === token);
+    if (idx < 0) return null;
+
+    const session = data.sessions[idx];
+    if (new Date(session.expires_at).getTime() <= Date.now()) {
+      // Session expired, clean it up
+      data.sessions.splice(idx, 1);
+      persist();
+      return null;
+    }
+    return session;
+  },
+
+  revokeSession(token: string): boolean {
+    const data = ensureLoaded();
+    const initialLen = data.sessions.length;
+    data.sessions = data.sessions.filter((s) => s.token !== token);
+    if (data.sessions.length !== initialLen) {
+      persist();
+      return true;
+    }
+    return false;
+  },
+
+  revokeAllUserSessions(userId: string): void {
+    const data = ensureLoaded();
+    data.sessions = data.sessions.filter((s) => s.user_id !== userId);
+    persist();
+  },
+
+  // User Management
+  getUserById(id: string): StoredUser | null {
+    const data = ensureLoaded();
+    return data.users.find((u) => u.id === id) || null;
+  },
+
+  getUserByEmail(email: string): StoredUser | null {
+    const data = ensureLoaded();
+    const clean = email.toLowerCase().trim();
+    return data.users.find((u) => u.email.toLowerCase() === clean) || null;
+  },
+
+  createUser(params: {
+    email: string;
+    passwordHash: string;
+    full_name: string;
+    role?: "admin" | "user";
+  }): { user: StoredUser; profile: Profile } {
+    const data = ensureLoaded();
+    const cleanEmail = params.email.toLowerCase().trim();
+    const userId = "usr-" + Math.random().toString(36).substring(2, 10);
+    const role: "admin" | "user" =
+      params.role || (cleanEmail === "staff@gmail.com" ? "admin" : "user");
+    const now = new Date().toISOString();
+
+    const user: StoredUser = {
+      id: userId,
+      email: cleanEmail,
+      password: params.passwordHash,
+      full_name: params.full_name || cleanEmail.split("@")[0] || "User",
+      role,
+      created_at: now,
+    };
+
+    const profile: Profile = {
+      id: userId,
+      username: null,
+      display_name: user.full_name,
+      bio: "",
+      avatar_url: null,
+      background_type: "color",
+      background_value: "#0b0f19",
+      card_opacity: 0.6,
+      card_radius: 24,
+      card_blur: 20,
+      accent_color: "#3b82f6",
+      music_url: null,
+      music_enabled: false,
+      enter_text: "Click To Enter",
+      is_premium: false,
+      is_banned: false,
+      is_flagged: false,
+      views: 0,
+      created_at: now,
+    };
+
+    data.users.push(user);
+    data.profiles.push(profile);
+    persist();
+
+    return { user, profile };
+  },
+
+  updateUserPassword(userId: string, newPasswordHash: string): boolean {
+    const data = ensureLoaded();
+    const user = data.users.find((u) => u.id === userId);
+    if (!user) return false;
+
+    user.password = newPasswordHash;
+    persist();
+    return true;
+  },
+
+  updateUserRole(userId: string, newRole: "admin" | "user"): boolean {
+    const data = ensureLoaded();
+    const user = data.users.find((u) => u.id === userId);
+    if (!user) return false;
+
+    user.role = newRole;
+    // Update active sessions for this user
+    for (const s of data.sessions) {
+      if (s.user_id === userId) {
+        s.role = newRole;
+      }
+    }
+    persist();
+    return true;
+  },
+
+  // Safe Store Data Scoping
+  getCallerStore(
+    userId: string,
+    isAdmin: boolean,
+  ): {
+    myProfile: Profile | null;
+    myLinks: BioLink[];
+    publicProfiles: PublicProfile[];
+  } {
+    const data = ensureLoaded();
+    const myProfile = data.profiles.find((p) => p.id === userId) || null;
+    const myLinks = data.links
+      .filter((l) => l.user_id === userId)
+      .sort((a, b) => a.position - b.position);
+
+    // Return only sanitized public fields for other profiles — NEVER password or email!
+    const publicProfiles: PublicProfile[] = data.profiles
+      .filter((p) => (isAdmin ? true : !p.is_banned))
+      .map((p) => ({
+        id: p.id,
+        username: p.username,
+        display_name: p.display_name,
+        bio: p.bio,
+        avatar_url: p.avatar_url,
+        background_type: p.background_type,
+        background_value: p.background_value,
+        card_opacity: p.card_opacity,
+        card_radius: p.card_radius,
+        card_blur: p.card_blur,
+        accent_color: p.accent_color,
+        music_url: p.music_url,
+        music_enabled: p.music_enabled,
+        enter_text: p.enter_text,
+        is_premium: p.is_premium,
+        is_banned: isAdmin ? p.is_banned : undefined,
+        is_flagged: isAdmin ? p.is_flagged : undefined,
+        views: p.views,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }));
+
+    return { myProfile, myLinks, publicProfiles };
+  },
+
+  getAllProfilesAdmin(isAdmin: boolean): Profile[] | null {
+    if (!isAdmin) return null;
+    const data = ensureLoaded();
+    // Return all profiles with moderation flags, sorted by creation date
+    return [...data.profiles].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  },
+
+  adminMutateProfile(
+    targetUserId: string,
+    changes: Partial<Profile>,
+  ): { success: boolean; error?: string } {
+    const data = ensureLoaded();
+    const profile = data.profiles.find((p) => p.id === targetUserId);
+    if (!profile) return { success: false, error: "Profile not found" };
+
+    if (typeof changes.is_premium === "boolean")
+      profile.is_premium = changes.is_premium;
+    if (typeof changes.is_banned === "boolean")
+      profile.is_banned = changes.is_banned;
+    if (typeof changes.is_flagged === "boolean")
+      profile.is_flagged = changes.is_flagged;
+    if (changes.avatar_url === null) profile.avatar_url = null;
+    if (changes.bio !== undefined)
+      profile.bio = String(changes.bio || "").slice(0, 500);
+
+    profile.updated_at = new Date().toISOString();
+    persist();
+    return { success: true };
+  },
+
+  adminDeleteProfile(targetUserId: string): {
+    success: boolean;
+    error?: string;
+  } {
+    const data = ensureLoaded();
+    const profIdx = data.profiles.findIndex((p) => p.id === targetUserId);
+    if (profIdx < 0) return { success: false, error: "Profile not found" };
+
+    data.profiles.splice(profIdx, 1);
+    data.links = data.links.filter((l) => l.user_id !== targetUserId);
+    persist();
+    return { success: true };
   },
 
   isUsernameAvailable(
     username: string,
-    excludeUserId?: string,
+    currentUserId?: string,
   ): { available: boolean; reason?: string } {
     const data = ensureLoaded();
     const clean = username.toLowerCase().trim();
 
-    if (!clean || clean.length < 3 || clean.length > 30) {
-      return { available: false, reason: "Username must be 3-30 characters." };
-    }
-
-    if (!/^[a-z0-9_.-]+$/.test(clean)) {
+    if (!clean) return { available: false, reason: "Username cannot be empty" };
+    if (clean.length < 3)
       return {
         available: false,
-        reason:
-          "Only lowercase letters, numbers, underscores, dashes, and dots allowed.",
+        reason: "Username must be at least 3 characters",
+      };
+    if (clean.length > 20)
+      return {
+        available: false,
+        reason: "Username cannot exceed 20 characters",
+      };
+    if (!/^[a-z0-9_.]{3,20}$/.test(clean)) {
+      return {
+        available: false,
+        reason: "Only lowercase letters, numbers, underscores and dots allowed",
+      };
+    }
+    if (RESERVED_SYSTEM_NAMES.has(clean)) {
+      return {
+        available: false,
+        reason: "This handle is reserved by the system",
       };
     }
 
-    // System reserved keywords (unless it is the existing staff seed user for 'halo')
-    if (RESERVED_SYSTEM_NAMES.has(clean)) {
-      const existingOwner = data.profiles.find(
-        (p) => p.username && p.username.toLowerCase() === clean,
-      );
-      if (!existingOwner || existingOwner.id !== excludeUserId) {
-        return {
-          available: false,
-          reason: "This username is reserved for system routes.",
-        };
-      }
-    }
-
-    // Check if another profile already owns this username
-    const existing = data.profiles.find(
+    const conflict = data.profiles.find(
       (p) =>
         p.username &&
         p.username.toLowerCase() === clean &&
-        p.id !== excludeUserId,
+        p.id !== currentUserId,
     );
 
-    if (existing) {
+    if (conflict) {
       return {
         available: false,
-        reason: "This username is already reserved by another user.",
+        reason: `The handle @${clean} is already claimed by another user`,
       };
     }
 
@@ -272,23 +611,23 @@ export const serverStorage = {
   claimUsername(
     userId: string,
     username: string,
-  ): { success: boolean; error?: string; username?: string } {
+  ): { success: boolean; username?: string; error?: string } {
     const data = ensureLoaded();
     const clean = username.toLowerCase().trim();
 
-    const check = this.isUsernameAvailable(clean, userId);
-    if (!check.available) {
+    const availability = this.isUsernameAvailable(clean, userId);
+    if (!availability.available) {
       return {
         success: false,
-        error:
-          check.reason || "This username is already taken by another user.",
+        error: availability.reason || "Username is not available",
       };
     }
 
     let profile = data.profiles.find((p) => p.id === userId);
     if (profile) {
       profile.username = clean;
-      if (!profile.display_name) profile.display_name = clean;
+      profile.display_name = profile.display_name || clean;
+      profile.updated_at = new Date().toISOString();
     } else {
       profile = {
         id: userId,
@@ -331,66 +670,123 @@ export const serverStorage = {
     return { profile, links };
   },
 
-  sync(payload: Partial<ServerData>): { success: boolean } {
+  /**
+   * Hardened sync endpoint.
+   * STRICT ENFORCEMENT:
+   * 1. Requires caller's userId.
+   * 2. Regular users may ONLY sync profile/links matching their own userId.
+   * 3. Regular users cannot alter is_premium, is_banned, is_flagged, or views.
+   * 4. Users array payload is STRICTLY IGNORED AND FORBIDDEN.
+   */
+  syncUser(
+    userId: string,
+    isAdmin: boolean,
+    payload: { profiles?: Profile[]; links?: BioLink[] },
+  ): { success: boolean; error?: string } {
     const data = ensureLoaded();
+
     if (payload.profiles && Array.isArray(payload.profiles)) {
-      // Merge or replace profiles with strict username collision prevention
       payload.profiles.forEach((incoming) => {
+        // Enforce ownership: non-admins can ONLY touch their own profile
+        if (!isAdmin && incoming.id !== userId) {
+          return;
+        }
+
         const idx = data.profiles.findIndex((p) => p.id === incoming.id);
         if (idx >= 0) {
-          let safeUsername = incoming.username;
-          if (safeUsername) {
-            const conflict = data.profiles.find(
-              (p) =>
-                p.id !== incoming.id &&
-                p.username &&
-                p.username.toLowerCase() === safeUsername?.toLowerCase(),
+          const existing = data.profiles[idx];
+          let safeUsername = existing.username;
+
+          // If username is changing, ensure availability
+          if (
+            incoming.username &&
+            incoming.username.toLowerCase() !== existing.username?.toLowerCase()
+          ) {
+            const avail = this.isUsernameAvailable(
+              incoming.username,
+              existing.id,
             );
-            if (conflict) {
-              // Preserve the original owner's username
-              safeUsername = data.profiles[idx].username;
+            if (avail.available) {
+              safeUsername = incoming.username.toLowerCase().trim();
             }
           }
+
           data.profiles[idx] = {
-            ...data.profiles[idx],
-            ...incoming,
+            ...existing,
+            display_name: incoming.display_name
+              ? String(incoming.display_name).slice(0, 100)
+              : existing.display_name,
+            bio:
+              incoming.bio !== undefined
+                ? String(incoming.bio || "").slice(0, 500)
+                : existing.bio,
+            avatar_url: sanitizeSafeUrl(incoming.avatar_url) || null,
+            background_type: ["color", "image", "video"].includes(
+              incoming.background_type,
+            )
+              ? incoming.background_type
+              : existing.background_type,
+            background_value:
+              sanitizeSafeUrl(incoming.background_value) ||
+              existing.background_value,
+            card_opacity:
+              typeof incoming.card_opacity === "number"
+                ? Math.min(1, Math.max(0, incoming.card_opacity))
+                : existing.card_opacity,
+            card_radius:
+              typeof incoming.card_radius === "number"
+                ? Math.min(60, Math.max(0, incoming.card_radius))
+                : existing.card_radius,
+            card_blur:
+              typeof incoming.card_blur === "number"
+                ? Math.min(60, Math.max(0, incoming.card_blur))
+                : existing.card_blur,
+            accent_color:
+              incoming.accent_color &&
+              /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color)
+                ? incoming.accent_color
+                : existing.accent_color,
+            music_url: sanitizeSafeUrl(incoming.music_url) || null,
+            music_enabled: Boolean(incoming.music_enabled),
+            enter_text: incoming.enter_text
+              ? String(incoming.enter_text).slice(0, 50)
+              : existing.enter_text,
+            // Privileged fields can ONLY be altered by admin
+            is_premium:
+              isAdmin && typeof incoming.is_premium === "boolean"
+                ? incoming.is_premium
+                : existing.is_premium,
+            is_banned:
+              isAdmin && typeof incoming.is_banned === "boolean"
+                ? incoming.is_banned
+                : existing.is_banned,
+            is_flagged:
+              isAdmin && typeof incoming.is_flagged === "boolean"
+                ? incoming.is_flagged
+                : existing.is_flagged,
+            views: existing.views,
             username: safeUsername,
+            updated_at: new Date().toISOString(),
           };
-        } else {
-          let safeUsername = incoming.username;
-          if (safeUsername) {
-            const conflict = data.profiles.find(
-              (p) =>
-                p.username &&
-                p.username.toLowerCase() === safeUsername?.toLowerCase(),
-            );
-            if (conflict) {
-              safeUsername = null;
-            }
-          }
-          data.profiles.push({ ...incoming, username: safeUsername });
         }
       });
     }
 
     if (payload.links && Array.isArray(payload.links)) {
-      // Group incoming links by user_id to replace each user's links cleanly
-      const userIds = Array.from(new Set(payload.links.map((l) => l.user_id)));
-      if (userIds.length > 0) {
-        data.links = data.links.filter((l) => !userIds.includes(l.user_id));
-        data.links.push(...payload.links);
-      }
-    }
+      // Filter links to ONLY those owned by the caller (or any if admin)
+      const allowedIncoming = payload.links
+        .filter((l) => (isAdmin ? true : l.user_id === userId))
+        .map((l) => ({
+          ...l,
+          title: String(l.title || "Link").slice(0, 100),
+          url: sanitizeSafeUrl(l.url) || "https://",
+          clicks: typeof l.clicks === "number" ? l.clicks : 0,
+        }));
 
-    if (payload.users && Array.isArray(payload.users)) {
-      payload.users.forEach((incoming) => {
-        const idx = data.users.findIndex((u) => u.id === incoming.id);
-        if (idx >= 0) {
-          data.users[idx] = { ...data.users[idx], ...incoming };
-        } else {
-          data.users.push(incoming);
-        }
-      });
+      // Replace caller's links
+      data.links = data.links
+        .filter((l) => (isAdmin ? false : l.user_id !== userId))
+        .concat(allowedIncoming);
     }
 
     persist();
@@ -398,8 +794,7 @@ export const serverStorage = {
   },
 
   /**
-   * Records a unique view by IP address.
-   * Only 1 view per IP per profile username is counted!
+   * Records a unique view by IP address with a 12-hour per-IP cooldown.
    */
   recordView(
     username: string,
@@ -420,10 +815,24 @@ export const serverStorage = {
     }
 
     const cleanIp = (ip || "127.0.0.1").trim();
-    const viewedList = data.viewed_ips[clean] || [];
+    const cooldownKey = `${cleanIp}:${clean}`;
+    const now = Date.now();
+    const lastView = data.view_cooldowns[cooldownKey] || 0;
 
-    // Check if this IP has already viewed this profile
+    // 12-hour cooldown check
+    if (now - lastView < 12 * 60 * 60 * 1000) {
+      return {
+        success: true,
+        counted: false,
+        views: profile.views || 0,
+        reason: "cooldown_active",
+      };
+    }
+
+    const viewedList = data.viewed_ips[clean] || [];
     if (viewedList.includes(cleanIp)) {
+      // Already viewed by this IP previously
+      data.view_cooldowns[cooldownKey] = now;
       return {
         success: true,
         counted: false,
@@ -432,9 +841,10 @@ export const serverStorage = {
       };
     }
 
-    // Record unique view
+    // Count new view
     viewedList.push(cleanIp);
     data.viewed_ips[clean] = viewedList;
+    data.view_cooldowns[cooldownKey] = now;
     profile.views = (profile.views || 0) + 1;
 
     persist();
@@ -446,15 +856,32 @@ export const serverStorage = {
     };
   },
 
-  recordClick(linkId: string): { success: boolean; clicks: number } {
+  /**
+   * Records a link click with a 10-second cooldown per IP per link.
+   */
+  recordClick(
+    linkId: string,
+    ip: string,
+  ): { success: boolean; clicks: number; counted: boolean } {
     const data = ensureLoaded();
     const link = data.links.find((l) => l.id === linkId);
-    if (link) {
-      link.clicks = (link.clicks || 0) + 1;
-      persist();
-      return { success: true, clicks: link.clicks };
+    if (!link) {
+      return { success: false, clicks: 0, counted: false };
     }
-    return { success: false, clicks: 0 };
+
+    const cleanIp = (ip || "127.0.0.1").trim();
+    const cooldownKey = `${cleanIp}:${linkId}`;
+    const now = Date.now();
+    const lastClick = data.click_cooldowns[cooldownKey] || 0;
+
+    if (now - lastClick < 10000) {
+      return { success: true, clicks: link.clicks || 0, counted: false };
+    }
+
+    data.click_cooldowns[cooldownKey] = now;
+    link.clicks = (link.clicks || 0) + 1;
+    persist();
+    return { success: true, clicks: link.clicks, counted: true };
   },
 
   getStats() {

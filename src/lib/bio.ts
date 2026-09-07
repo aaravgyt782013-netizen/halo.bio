@@ -40,6 +40,7 @@ export type UserRole = {
 export type AuthUser = {
   id: string;
   email: string;
+  role?: "admin" | "user";
   user_metadata?: {
     full_name?: string;
   };
@@ -51,7 +52,7 @@ export type AuthSession = {
   user: AuthUser;
 };
 
-type StoredUser = {
+export type StoredUser = {
   id: string;
   email: string;
   password: string;
@@ -88,271 +89,28 @@ export function ensureProtocol(url: string) {
   return `https://${trimmed}`;
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  if (typeof crypto !== "undefined" && crypto.subtle) {
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode("halo_salt_2026_" + password);
-      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-    } catch {
-      // Fallback
-    }
-  }
-  return "h_" + btoa("halo:" + password);
-}
-
-async function verifyPassword(
-  plainInput: string,
-  storedHash: string,
-): Promise<boolean> {
-  if (plainInput === storedHash) return true; // Legacy fallback
-  const hashed = await hashPassword(plainInput);
-  return hashed === storedHash;
-}
-
-const failedLogins = new Map<string, { count: number; lockedUntil: number }>();
-
-const STORAGE_PREFIX = "halo_bio_store_v1";
-
-const SEED_USERS: StoredUser[] = [
-  {
-    id: "usr-staff-admin",
-    email: "staff@gmail.com",
-    password: "password123",
-    full_name: "Halo Staff",
-    role: "admin",
-    created_at: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "usr-alex-creator",
-    email: "alex@halo.bio",
-    password: "password123",
-    full_name: "Alex Rivera",
-    role: "user",
-    created_at: "2026-02-15T00:00:00Z",
-  },
-];
-
-const SEED_PROFILES: Profile[] = [
-  {
-    id: "usr-staff-admin",
-    username: "halo",
-    display_name: "Halo Official",
-    bio: "Next-gen media-rich link-in-bio platform with sound, video backgrounds and frosted glass aesthetics.",
-    avatar_url:
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
-    background_type: "color",
-    background_value: "#0b0f19",
-    card_opacity: 0.65,
-    card_radius: 24,
-    card_blur: 24,
-    accent_color: "#6366f1",
-    music_url: null,
-    music_enabled: false,
-    enter_text: "click to enter",
-    is_premium: true,
-    is_banned: false,
-    is_flagged: false,
-    views: 1420,
-    created_at: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "usr-alex-creator",
-    username: "alex",
-    display_name: "Alex Rivera",
-    bio: "Visual Artist & Ambient Sound Designer based in Tokyo & Berlin.",
-    avatar_url:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
-    background_type: "image",
-    background_value:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&auto=format&fit=crop&q=80",
-    card_opacity: 0.55,
-    card_radius: 26,
-    card_blur: 20,
-    accent_color: "#3b82f6",
-    music_url:
-      "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
-    music_enabled: true,
-    enter_text: "listen & explore",
-    is_premium: true,
-    is_banned: false,
-    is_flagged: false,
-    views: 3890,
-    created_at: "2026-02-15T00:00:00Z",
-  },
-];
-
-const SEED_LINKS: BioLink[] = [
-  {
-    id: "lnk-halo-1",
-    user_id: "usr-staff-admin",
-    title: "Join the Discord Community",
-    url: "https://discord.gg",
-    position: 0,
-    clicks: 342,
-  },
-  {
-    id: "lnk-halo-2",
-    user_id: "usr-staff-admin",
-    title: "Follow on X / Twitter",
-    url: "https://x.com",
-    position: 1,
-    clicks: 520,
-  },
-  {
-    id: "lnk-halo-3",
-    user_id: "usr-staff-admin",
-    title: "Official Documentation",
-    url: "https://github.com",
-    position: 2,
-    clicks: 189,
-  },
-  {
-    id: "lnk-alex-1",
-    user_id: "usr-alex-creator",
-    title: "Stream Latest Ambient EP on Spotify",
-    url: "https://spotify.com",
-    position: 0,
-    clicks: 1204,
-  },
-  {
-    id: "lnk-alex-2",
-    user_id: "usr-alex-creator",
-    title: "Visual Art & Photography Portfolio",
-    url: "https://behance.net",
-    position: 1,
-    clicks: 890,
-  },
-  {
-    id: "lnk-alex-3",
-    user_id: "usr-alex-creator",
-    title: "Limited Edition Art Prints (Store)",
-    url: "https://etsy.com",
-    position: 2,
-    clicks: 432,
-  },
-  {
-    id: "lnk-alex-4",
-    user_id: "usr-alex-creator",
-    title: "Follow on Instagram",
-    url: "https://instagram.com",
-    position: 3,
-    clicks: 1650,
-  },
-];
+const CSRF_HEADER = { "X-Requested-With": "halo-app" };
 
 type StoreData = {
-  users: StoredUser[];
   profiles: Profile[];
   links: BioLink[];
   session: AuthSession | null;
 };
 
-let memoryStore: StoreData = {
-  users: [...SEED_USERS],
-  profiles: [...SEED_PROFILES],
-  links: [...SEED_LINKS],
+const memoryStore: StoreData = {
+  profiles: [],
+  links: [],
   session: null,
 };
 
-function getStore(): StoreData {
-  if (typeof window === "undefined") {
-    return memoryStore;
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_PREFIX);
-    if (!raw) {
-      window.localStorage.setItem(STORAGE_PREFIX, JSON.stringify(memoryStore));
-      return memoryStore;
-    }
-    const parsed = JSON.parse(raw) as Partial<StoreData>;
-    memoryStore = {
-      users: parsed.users?.length ? parsed.users : [...SEED_USERS],
-      profiles: parsed.profiles?.length ? parsed.profiles : [...SEED_PROFILES],
-      links: parsed.links?.length ? parsed.links : [...SEED_LINKS],
-      session: parsed.session ?? null,
-    };
-    return memoryStore;
-  } catch {
-    return memoryStore;
-  }
-}
+let isInitialStoreLoaded = false;
 
-function saveStore(data: StoreData) {
-  memoryStore = data;
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(STORAGE_PREFIX, JSON.stringify(data));
-      window.dispatchEvent(new Event("halo-store-updated"));
-    } catch (e) {
-      console.warn("Error persisting to localStorage:", e);
-    }
-
-    if (typeof fetch !== "undefined") {
-      fetch("/api/sync", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          profiles: data.profiles,
-          links: data.links,
-          users: data.users,
-        }),
-      }).catch(() => {
-        // Ignore network offline errors
-      });
-    }
-  }
-}
-
-if (typeof window !== "undefined" && typeof fetch !== "undefined") {
-  fetch("/api/store")
-    .then((r) => (r.ok ? r.json() : null))
-    .then((serverData) => {
-      if (serverData && Array.isArray(serverData.profiles)) {
-        const store = getStore();
-        let changed = false;
-        serverData.profiles.forEach((sp: Profile) => {
-          const idx = store.profiles.findIndex((p) => p.id === sp.id);
-          if (idx >= 0) {
-            if ((sp.views || 0) > (store.profiles[idx].views || 0)) {
-              store.profiles[idx].views = sp.views;
-              changed = true;
-            }
-          } else {
-            store.profiles.push(sp);
-            changed = true;
-          }
-        });
-        if (Array.isArray(serverData.links)) {
-          serverData.links.forEach((sl: BioLink) => {
-            if (!store.links.some((l) => l.id === sl.id)) {
-              store.links.push(sl);
-              changed = true;
-            }
-          });
-        }
-        if (changed) {
-          memoryStore = store;
-          try {
-            window.localStorage.setItem(STORAGE_PREFIX, JSON.stringify(store));
-            window.dispatchEvent(new Event("halo-store-updated"));
-          } catch {
-            // ignore
-          }
-        }
-      }
-    })
-    .catch(() => {
-      // ignore
-    });
-}
-
+// Client auth listeners
 type AuthCallback = (event: string, session: AuthSession | null) => void;
 const authListeners = new Set<AuthCallback>();
 
 function emitAuth(event: string, session: AuthSession | null) {
+  memoryStore.session = session;
   authListeners.forEach((cb) => {
     try {
       cb(event, session);
@@ -360,6 +118,148 @@ function emitAuth(event: string, session: AuthSession | null) {
       console.error("Auth listener error:", e);
     }
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("halo-store-updated"));
+  }
+}
+
+/**
+ * Initializes session and store from server APIs.
+ */
+export async function initClientSession(): Promise<AuthSession | null> {
+  if (typeof window === "undefined" || typeof fetch === "undefined") {
+    return null;
+  }
+
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: CSRF_HEADER,
+      credentials: "include",
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        user: {
+          id: string;
+          email: string;
+          full_name: string;
+          role: "admin" | "user";
+        } | null;
+        session: { user_id: string; role: "admin" | "user" } | null;
+      };
+
+      if (data && data.user && data.session) {
+        const session: AuthSession = {
+          access_token: "server-cookie-session",
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            role: data.user.role,
+            user_metadata: { full_name: data.user.full_name },
+          },
+        };
+        memoryStore.session = session;
+
+        // Fetch user store data from server
+        await refreshUserData();
+        return session;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch server session:", err);
+  }
+
+  memoryStore.session = null;
+  return null;
+}
+
+/**
+ * Refreshes caller's store from `/api/store`.
+ */
+export async function refreshUserData(): Promise<void> {
+  if (typeof window === "undefined" || typeof fetch === "undefined") return;
+
+  try {
+    const res = await fetch("/api/store", {
+      headers: CSRF_HEADER,
+      credentials: "include",
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        myProfile: Profile | null;
+        myLinks: BioLink[];
+        publicProfiles: Profile[];
+      };
+
+      if (data) {
+        const allProfiles: Profile[] = [];
+        if (data.myProfile) {
+          allProfiles.push(data.myProfile);
+        }
+        if (Array.isArray(data.publicProfiles)) {
+          for (const pub of data.publicProfiles) {
+            if (!allProfiles.some((p) => p.id === pub.id)) {
+              allProfiles.push(pub);
+            }
+          }
+        }
+
+        memoryStore.profiles = allProfiles;
+        memoryStore.links = Array.isArray(data.myLinks) ? data.myLinks : [];
+        isInitialStoreLoaded = true;
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("halo-store-updated"));
+        }
+      }
+    }
+  } catch {
+    // Ignore offline errors
+  }
+}
+
+// Client auto-initialization
+if (typeof window !== "undefined") {
+  initClientSession().then((session) => {
+    emitAuth("INITIAL_SESSION", session);
+  });
+}
+
+function getStore(): StoreData {
+  return memoryStore;
+}
+
+/**
+ * Synchronizes caller's profile and links changes to the server.
+ * NOTE: NEVER sends users, passwords, or emails.
+ */
+function syncToServer(currentUserId?: string) {
+  if (typeof window === "undefined" || typeof fetch === "undefined") return;
+
+  const uid = currentUserId || memoryStore.session?.user?.id;
+  if (!uid) return;
+
+  // Filter to caller's own records to prevent tampering
+  const myProfiles = memoryStore.profiles.filter((p) => p.id === uid);
+  const myLinks = memoryStore.links.filter((l) => l.user_id === uid);
+
+  fetch("/api/sync", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...CSRF_HEADER,
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      profiles: myProfiles,
+      links: myLinks,
+    }),
+  }).catch(() => {
+    // offline retry or error ignored
+  });
+
+  window.dispatchEvent(new Event("halo-store-updated"));
 }
 
 export const auth = {
@@ -367,14 +267,17 @@ export const auth = {
     data: { session: AuthSession | null };
     error: null;
   }> {
-    const store = getStore();
-    return { data: { session: store.session }, error: null };
+    if (memoryStore.session) {
+      return { data: { session: memoryStore.session }, error: null };
+    }
+    const session = await initClientSession();
+    return { data: { session }, error: null };
   },
 
   onAuthStateChange(callback: AuthCallback) {
     authListeners.add(callback);
-    const store = getStore();
-    callback("INITIAL_SESSION", store.session);
+    // Initial callback with current memory store session
+    callback("INITIAL_SESSION", memoryStore.session);
 
     return {
       data: {
@@ -399,93 +302,55 @@ export const auth = {
     data: { user: AuthUser | null; session: AuthSession | null };
     error: Error | null;
   }> {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...CSRF_HEADER,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: options?.data?.full_name,
+        }),
+      });
 
-    if (!cleanEmail || !cleanEmail.includes("@")) {
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          data: { user: null, session: null },
+          error: new Error(json.error || "Failed to sign up"),
+        };
+      }
+
+      const authUser: AuthUser = {
+        id: json.user.id,
+        email: json.user.email,
+        role: json.user.role,
+        user_metadata: { full_name: json.user.full_name },
+      };
+
+      const session: AuthSession = {
+        access_token: "server-cookie-session",
+        user: authUser,
+      };
+
+      memoryStore.session = session;
+      await refreshUserData();
+      emitAuth("SIGNED_IN", session);
+
+      return { data: { user: authUser, session }, error: null };
+    } catch (err) {
       return {
         data: { user: null, session: null },
-        error: new Error("Please enter a valid email address."),
+        error:
+          err instanceof Error
+            ? err
+            : new Error("Network error during sign up"),
       };
     }
-    if (cleanPassword.length < 6) {
-      return {
-        data: { user: null, session: null },
-        error: new Error("Password must be at least 6 characters."),
-      };
-    }
-
-    const store = getStore();
-    const existing = store.users.find(
-      (u) => u.email.toLowerCase() === cleanEmail,
-    );
-    if (existing) {
-      return {
-        data: { user: null, session: null },
-        error: new Error(
-          "An account with this email already exists. Please log in.",
-        ),
-      };
-    }
-
-    const userId = "usr-" + Math.random().toString(36).substring(2, 10);
-    const fullName =
-      options?.data?.full_name || cleanEmail.split("@")[0] || "User";
-    const role: "admin" | "user" =
-      cleanEmail === "staff@gmail.com" ? "admin" : "user";
-    const hashedPassword = await hashPassword(cleanPassword);
-
-    const newUser: StoredUser = {
-      id: userId,
-      email: cleanEmail,
-      password: hashedPassword,
-      full_name: fullName,
-      role,
-      created_at: new Date().toISOString(),
-    };
-
-    const newProfile: Profile = {
-      id: userId,
-      username: null,
-      display_name: fullName,
-      bio: "",
-      avatar_url: null,
-      background_type: "color",
-      background_value: "#0b0f19",
-      card_opacity: 0.6,
-      card_radius: 24,
-      card_blur: 20,
-      accent_color: "#3b82f6",
-      music_url: null,
-      music_enabled: false,
-      enter_text: "click to enter",
-      is_premium: false,
-      is_banned: false,
-      is_flagged: false,
-      views: 0,
-      created_at: new Date().toISOString(),
-    };
-
-    const authUser: AuthUser = {
-      id: userId,
-      email: cleanEmail,
-      user_metadata: { full_name: fullName },
-      created_at: newUser.created_at,
-    };
-
-    const session: AuthSession = {
-      access_token: "manual-token-" + Math.random().toString(36).substring(2),
-      user: authUser,
-    };
-
-    store.users.push(newUser);
-    store.profiles.push(newProfile);
-    store.session = session;
-
-    saveStore(store);
-    emitAuth("SIGNED_IN", session);
-
-    return { data: { user: authUser, session }, error: null };
   },
 
   async signInWithPassword({
@@ -498,81 +363,95 @@ export const auth = {
     data: { user: AuthUser | null; session: AuthSession | null };
     error: Error | null;
   }> {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...CSRF_HEADER,
+        },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Check failed attempt rate-limit
-    const now = Date.now();
-    const failRecord = failedLogins.get(cleanEmail);
-    if (failRecord && failRecord.lockedUntil > now) {
-      const waitSec = Math.ceil((failRecord.lockedUntil - now) / 1000);
-      return {
-        data: { user: null, session: null },
-        error: new Error(
-          `Too many failed sign-in attempts. Please wait ${waitSec}s.`,
-        ),
-      };
-    }
-
-    const store = getStore();
-    const user = store.users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    const isMatch = user
-      ? await verifyPassword(cleanPassword, user.password)
-      : false;
-
-    if (!user || !isMatch) {
-      const currentFails = (failRecord?.count || 0) + 1;
-      if (currentFails >= 5) {
-        failedLogins.set(cleanEmail, {
-          count: 0,
-          lockedUntil: now + 60_000, // 60s lockout
-        });
-      } else {
-        failedLogins.set(cleanEmail, {
-          count: currentFails,
-          lockedUntil: 0,
-        });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          data: { user: null, session: null },
+          error: new Error(json.error || "Failed to log in"),
+        };
       }
+
+      const authUser: AuthUser = {
+        id: json.user.id,
+        email: json.user.email,
+        role: json.user.role,
+        user_metadata: { full_name: json.user.full_name },
+      };
+
+      const session: AuthSession = {
+        access_token: "server-cookie-session",
+        user: authUser,
+      };
+
+      memoryStore.session = session;
+      await refreshUserData();
+      emitAuth("SIGNED_IN", session);
+
+      return { data: { user: authUser, session }, error: null };
+    } catch (err) {
       return {
         data: { user: null, session: null },
-        error: new Error("Invalid email or password. Please try again."),
+        error:
+          err instanceof Error
+            ? err
+            : new Error("Network error during sign in"),
       };
     }
-
-    // Clear failed attempts on success
-    failedLogins.delete(cleanEmail);
-
-    // If legacy plaintext password, upgrade to hash
-    if (user.password === cleanPassword) {
-      user.password = await hashPassword(cleanPassword);
-    }
-
-    const authUser: AuthUser = {
-      id: user.id,
-      email: user.email,
-      user_metadata: { full_name: user.full_name },
-      created_at: user.created_at,
-    };
-
-    const session: AuthSession = {
-      access_token: "manual-token-" + Math.random().toString(36).substring(2),
-      user: authUser,
-    };
-
-    store.session = session;
-    saveStore(store);
-    emitAuth("SIGNED_IN", session);
-
-    return { data: { user: authUser, session }, error: null };
   },
 
   async signOut(): Promise<{ error: null }> {
-    const store = getStore();
-    store.session = null;
-    saveStore(store);
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: CSRF_HEADER,
+        credentials: "include",
+      });
+    } catch {
+      // ignore
+    }
+    memoryStore.session = null;
+    memoryStore.profiles = [];
+    memoryStore.links = [];
     emitAuth("SIGNED_OUT", null);
     return { error: null };
+  },
+
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ error: Error | null }> {
+    try {
+      const res = await fetch("/api/change-password", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...CSRF_HEADER,
+        },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        return { error: new Error(json.error || "Failed to update password") };
+      }
+      return { error: null };
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error ? err : new Error("Failed to change password"),
+      };
+    }
   },
 };
 
@@ -678,21 +557,68 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async execute(): Promise<{ data: any; error: Error | null }> {
     const store = getStore();
+    const currentUser = store.session?.user;
 
+    // 1. user_roles query
     if (this.tableName === "user_roles") {
-      let list: UserRole[] = store.users.map((u) => ({
-        id: "role-" + u.id,
-        user_id: u.id,
-        role: u.role,
-      }));
+      let list: UserRole[] = [];
+      if (currentUser) {
+        list = [
+          {
+            id: "role-" + currentUser.id,
+            user_id: currentUser.id,
+            role: currentUser.role || "user",
+          },
+        ];
+      }
       list = this.applyFilters(list);
       const data =
         this.isSingle || this.isMaybeSingle ? (list[0] ?? null) : list;
       return { data, error: null };
     }
 
+    // 2. profiles query
     if (this.tableName === "profiles") {
       if (this.operation === "select") {
+        // If admin and fetching all, try server-side admin endpoint
+        if (
+          currentUser?.role === "admin" &&
+          this.filters.length === 0 &&
+          typeof window !== "undefined" &&
+          typeof fetch !== "undefined"
+        ) {
+          try {
+            const adminRes = await fetch("/api/admin/profiles", {
+              headers: CSRF_HEADER,
+              credentials: "include",
+            });
+            if (adminRes.ok) {
+              const adminJson = await adminRes.json();
+              if (adminJson && Array.isArray(adminJson.profiles)) {
+                let list = [...adminJson.profiles];
+                if (this.orderConfig) {
+                  const { column, ascending } = this.orderConfig;
+                  list.sort((a, b) => {
+                    const av = a[column as keyof Profile];
+                    const bv = b[column as keyof Profile];
+                    if (av == null) return 1;
+                    if (bv == null) return -1;
+                    if (av < bv) return ascending ? -1 : 1;
+                    if (av > bv) return ascending ? 1 : -1;
+                    return 0;
+                  });
+                }
+                if (this.limitCount != null) {
+                  list = list.slice(0, this.limitCount);
+                }
+                return { data: list, error: null };
+              }
+            }
+          } catch {
+            // fallback to store
+          }
+        }
+
         let list = [...store.profiles];
         list = this.applyFilters(list);
         if (this.orderConfig) {
@@ -716,72 +642,39 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
       }
 
       if (this.operation === "update") {
-        const targetUsername =
-          this.payload && "username" in this.payload && this.payload.username
-            ? String(this.payload.username).toLowerCase().trim()
-            : null;
+        const idFilter = this.filters.find(
+          (f) => f.column === "id" && f.operator === "eq",
+        );
+        const targetId = idFilter ? String(idFilter.value) : undefined;
 
-        // If a username is being set or changed, strictly ensure NO OTHER USER owns it
-        if (targetUsername) {
-          const matchingProfiles = store.profiles.filter((p) =>
-            this.filters.every((f) => {
-              if (f.operator === "eq")
-                return p[f.column as keyof Profile] === f.value;
-              if (f.operator === "ilike") {
-                const pv = p[f.column as keyof Profile];
-                return (
-                  String(pv).toLowerCase() === String(f.value).toLowerCase()
-                );
-              }
-              return true;
-            }),
-          );
-
-          for (const target of matchingProfiles) {
-            const conflict = store.profiles.some(
-              (other) =>
-                other.id !== target.id &&
-                other.username &&
-                other.username.toLowerCase() === targetUsername,
-            );
-            if (conflict) {
+        // If target is someone else or admin action, route via admin endpoint
+        if (
+          targetId &&
+          currentUser?.role === "admin" &&
+          targetId !== currentUser.id
+        ) {
+          try {
+            const res = await fetch("/api/admin/profile-mutate", {
+              method: "POST",
+              headers: { "content-type": "application/json", ...CSRF_HEADER },
+              credentials: "include",
+              body: JSON.stringify({
+                targetUserId: targetId,
+                changes: this.payload,
+              }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
               return {
                 data: null,
-                error: new Error(
-                  `The username "${targetUsername}" is already reserved by another user.`,
-                ),
+                error: new Error(json.error || "Failed to update profile"),
               };
             }
-          }
-
-          // Verify with server-side claim endpoint as single source of truth
-          if (typeof fetch !== "undefined" && matchingProfiles.length > 0) {
-            const target = matchingProfiles[0];
-            try {
-              const res = await fetch("/api/claim", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                  userId: target.id,
-                  username: targetUsername,
-                }),
-              });
-              const json = (await res.json()) as {
-                success?: boolean;
-                error?: string;
-              };
-              if (!res.ok || !json.success) {
-                return {
-                  data: null,
-                  error: new Error(
-                    json.error ||
-                      `The username "${targetUsername}" is already reserved by another user.`,
-                  ),
-                };
-              }
-            } catch {
-              // network offline fallback
-            }
+          } catch (err) {
+            return {
+              data: null,
+              error: err instanceof Error ? err : new Error("Network error"),
+            };
           }
         }
 
@@ -806,11 +699,40 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           }
           return p;
         });
-        saveStore(store);
+
+        syncToServer(currentUser?.id);
         return { data: { count: updatedCount }, error: null };
       }
 
       if (this.operation === "delete") {
+        const idFilter = this.filters.find(
+          (f) => f.column === "id" && f.operator === "eq",
+        );
+        const targetId = idFilter ? String(idFilter.value) : undefined;
+
+        if (targetId && currentUser?.role === "admin") {
+          try {
+            const res = await fetch("/api/admin/delete-profile", {
+              method: "POST",
+              headers: { "content-type": "application/json", ...CSRF_HEADER },
+              credentials: "include",
+              body: JSON.stringify({ targetUserId: targetId }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              return {
+                data: null,
+                error: new Error(json.error || "Failed to delete profile"),
+              };
+            }
+          } catch (err) {
+            return {
+              data: null,
+              error: err instanceof Error ? err : new Error("Network error"),
+            };
+          }
+        }
+
         store.profiles = store.profiles.filter((p) => {
           return !this.filters.every((f) => {
             if (f.operator === "eq")
@@ -818,11 +740,12 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
             return true;
           });
         });
-        saveStore(store);
+        syncToServer(currentUser?.id);
         return { data: null, error: null };
       }
     }
 
+    // 3. links query
     if (this.tableName === "links") {
       if (this.operation === "select") {
         let list = [...store.links];
@@ -847,7 +770,7 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
       if (this.operation === "insert") {
         const newLink: BioLink = {
           id: "lnk-" + Math.random().toString(36).substring(2, 10),
-          user_id: this.payload.user_id,
+          user_id: this.payload.user_id || currentUser?.id,
           title: this.payload.title || "New Link",
           url: this.payload.url || "https://",
           position: this.payload.position ?? store.links.length,
@@ -856,7 +779,7 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           ...this.payload,
         };
         store.links.push(newLink);
-        saveStore(store);
+        syncToServer(currentUser?.id);
         return { data: newLink, error: null };
       }
 
@@ -874,7 +797,7 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
           }
           return link;
         });
-        saveStore(store);
+        syncToServer(currentUser?.id);
         return { data: { count: updatedCount }, error: null };
       }
 
@@ -886,7 +809,7 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
             return true;
           });
         });
-        saveStore(store);
+        syncToServer(currentUser?.id);
         return { data: null, error: null };
       }
     }
@@ -924,22 +847,10 @@ export const db = {
         .trim();
       const userId = args["_user_id"] ? String(args["_user_id"]) : undefined;
 
-      if (!username || username.length < 3 || username.length > 30) {
+      if (!username || username.length < 3 || username.length > 20) {
         return { data: false, error: null };
       }
 
-      // Check local store
-      const localConflict = store.profiles.some(
-        (p) =>
-          p.username &&
-          p.username.toLowerCase() === username &&
-          p.id !== userId,
-      );
-      if (localConflict) {
-        return { data: false, error: null };
-      }
-
-      // Check with live server single source of truth
       if (typeof fetch !== "undefined") {
         try {
           const q = new URLSearchParams({ username });
@@ -952,10 +863,16 @@ export const db = {
             }
           }
         } catch {
-          // offline fallback: use local check
+          // offline
         }
       }
 
+      const localConflict = store.profiles.some(
+        (p) =>
+          p.username &&
+          p.username.toLowerCase() === username &&
+          p.id !== userId,
+      );
       return { data: !localConflict, error: null };
     }
 
@@ -972,28 +889,12 @@ export const db = {
         };
       }
 
-      // Check local conflict first
-      const conflict = store.profiles.some(
-        (p) =>
-          p.id !== userId &&
-          p.username &&
-          p.username.toLowerCase() === username,
-      );
-      if (conflict) {
-        return {
-          data: null,
-          error: new Error(
-            `The username "${username}" is already reserved by another user.`,
-          ),
-        };
-      }
-
-      // Verify on server
       if (typeof fetch !== "undefined") {
         try {
           const res = await fetch("/api/claim", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...CSRF_HEADER },
+            credentials: "include",
             body: JSON.stringify({ userId, username }),
           });
           const json = (await res.json()) as {
@@ -1009,8 +910,11 @@ export const db = {
               ),
             };
           }
-        } catch {
-          // network error fallback
+        } catch (err) {
+          return {
+            data: null,
+            error: err instanceof Error ? err : new Error("Network error"),
+          };
         }
       }
 
@@ -1024,7 +928,6 @@ export const db = {
             }
           : p,
       );
-      saveStore(store);
       return { data: { success: true, username }, error: null };
     }
 
@@ -1038,7 +941,7 @@ export const db = {
         try {
           const res = await fetch("/api/view", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...CSRF_HEADER },
             body: JSON.stringify({ username }),
           });
           const json = (await res.json()) as {
@@ -1052,23 +955,13 @@ export const db = {
                 ? { ...p, views: json.views! }
                 : p,
             );
-            saveStore(store);
             return { data: json, error: null };
           }
         } catch {
-          // fallback to local increment
+          // fallback
         }
       }
 
-      let found = false;
-      store.profiles = store.profiles.map((p) => {
-        if (p.username && p.username.toLowerCase() === username) {
-          found = true;
-          return { ...p, views: (p.views || 0) + 1 };
-        }
-        return p;
-      });
-      if (found) saveStore(store);
       return { data: null, error: null };
     }
 
@@ -1077,45 +970,35 @@ export const db = {
       if (typeof fetch !== "undefined") {
         fetch("/api/click", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...CSRF_HEADER },
           body: JSON.stringify({ linkId }),
         }).catch(() => {});
       }
-      let found = false;
-      store.links = store.links.map((link) => {
-        if (link.id === linkId) {
-          found = true;
-          return { ...link, clicks: (link.clicks || 0) + 1 };
-        }
-        return link;
-      });
-      if (found) saveStore(store);
       return { data: null, error: null };
     }
 
     if (fnName === "platform_stats") {
-      const total_profiles = store.profiles.length;
-      const active_profiles = store.profiles.filter(
-        (p) => p.username && !p.is_banned,
-      ).length;
-      const total_views = store.profiles.reduce(
-        (acc, p) => acc + (p.views || 0),
-        0,
-      );
-      const total_clicks = store.links.reduce(
-        (acc, l) => acc + (l.clicks || 0),
-        0,
-      );
-      const total_links = store.links.length;
-
+      if (typeof fetch !== "undefined") {
+        try {
+          const res = await fetch("/api/stats");
+          if (res.ok) {
+            const stats = await res.json();
+            return { data: [stats], error: null };
+          }
+        } catch {
+          // fallback
+        }
+      }
       return {
         data: [
           {
-            total_profiles,
-            active_profiles,
-            total_views,
-            total_clicks,
-            total_links,
+            total_profiles: store.profiles.length,
+            active_profiles: store.profiles.filter(
+              (p) => p.username && !p.is_banned,
+            ).length,
+            total_views: store.profiles.reduce((a, b) => a + (b.views || 0), 0),
+            total_clicks: store.links.reduce((a, b) => a + (b.clicks || 0), 0),
+            total_links: store.links.length,
           },
         ],
         error: null,
@@ -1127,7 +1010,7 @@ export const db = {
 };
 
 /**
- * Uploads media files into local storage data URLs with image compression
+ * Uploads media files into data URLs with image compression
  * and file size protections to prevent quota limits.
  */
 export async function uploadMedia(
@@ -1180,7 +1063,6 @@ export async function uploadMedia(
           canvas.height = Math.max(height, 1);
           const ctx = canvas.getContext("2d");
           if (!ctx) {
-            // Fallback to direct read
             readDirect(file).then(resolve).catch(reject);
             return;
           }
@@ -1237,12 +1119,7 @@ export async function fetchProfileByUsername(username: string) {
       }
     }
 
-    const store = getStore();
-    let profile = store.profiles.find(
-      (p) => p.username && p.username.toLowerCase() === cleanUser,
-    );
-
-    // If on client, also try fetching from /api/profile/:username for freshest updates
+    // Client fetch from live server API
     if (typeof window !== "undefined" && typeof fetch !== "undefined") {
       try {
         const res = await fetch(
@@ -1254,27 +1131,31 @@ export async function fetchProfileByUsername(username: string) {
             links: BioLink[];
           };
           if (data && data.profile) {
-            profile = data.profile;
-            const pIdx = store.profiles.findIndex((p) => p.id === profile!.id);
-            if (pIdx >= 0) store.profiles[pIdx] = profile!;
-            else store.profiles.push(profile!);
+            const pIdx = memoryStore.profiles.findIndex(
+              (p) => p.id === data.profile.id,
+            );
+            if (pIdx >= 0) memoryStore.profiles[pIdx] = data.profile;
+            else memoryStore.profiles.push(data.profile);
+
             if (data.links && Array.isArray(data.links)) {
-              store.links = store.links
-                .filter((l) => l.user_id !== profile!.id)
+              memoryStore.links = memoryStore.links
+                .filter((l) => l.user_id !== data.profile.id)
                 .concat(data.links);
             }
-            saveStore(store);
             return { profile: data.profile, links: data.links || [] };
           }
         }
       } catch {
-        // Fallback to local
+        // Fallback
       }
     }
 
+    const profile = memoryStore.profiles.find(
+      (p) => p.username && p.username.toLowerCase() === cleanUser,
+    );
     if (!profile) return null;
 
-    const links = store.links
+    const links = memoryStore.links
       .filter((l) => l.user_id === profile.id)
       .sort((a, b) => a.position - b.position);
 

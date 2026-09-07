@@ -3,7 +3,7 @@
     {
       "id": "usr-staff-admin",
       "email": "staff@gmail.com",
-      "password": "password123",
+      "password": "fc1f6793e96e7be88d1fabb21494346f:67c468a2d816b2014225570f31961403f6b41fc5727c5eadaea70bbc987a72b881301d1d547a11d834e22c7d2270912abeba5a3bfe5ea82b19aa78ecf70bb4f2",
       "full_name": "Halo Staff",
       "role": "admin",
       "created_at": "2026-01-01T00:00:00Z"
@@ -11,7 +11,7 @@
     {
       "id": "usr-alex-creator",
       "email": "alex@halo.bio",
-      "password": "password123",
+      "password": "569ab796e402513136a01c53e95acbe0:49f9e90694aec90639ea2975ef2010c33cd6b7a41b2ad3f6d834759fdde4c64b7ca701662aa6d3d9e7fe8f2bb535776f594ef15a31d8a6b228a5b0ae51669781",
       "full_name": "Alex Rivera",
       "role": "user",
       "created_at": "2026-02-15T00:00:00Z"
@@ -44,7 +44,7 @@
       "is_premium": true,
       "is_banned": false,
       "is_flagged": false,
-      "views": 1420,
+      "views": 1421,
       "created_at": "2026-01-01T00:00:00Z"
     },
     {
@@ -171,12 +171,20 @@
       "clicks": 1650
     }
   ],
+  "sessions": [],
   "viewed_ips": {
     "alex": [
       "192.168.1.50"
     ],
     "mrrich": [
       "2409:40d0:16:61e1:8000::"
+    ],
+    "halo": [
+      "203.0.113.195"
     ]
-  }
+  },
+  "view_cooldowns": {
+    "203.0.113.195:halo": 1788754735297
+  },
+  "click_cooldowns": {}
 }
