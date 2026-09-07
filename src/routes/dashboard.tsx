@@ -154,7 +154,9 @@ function Dashboard() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
-  const [previewMode, setPreviewMode] = useState<"profile" | "enter">("profile");
+  const [previewMode, setPreviewMode] = useState<"profile" | "enter">(
+    "profile",
+  );
 
   // Audio testing
   const [testAudioPlaying, setTestAudioPlaying] = useState(false);
@@ -534,7 +536,7 @@ function Dashboard() {
             mobileView === "preview" ? "hidden lg:block" : "block"
           }`}
         >
-          <div className="mb-6 flex gap-1 rounded-xl bg-secondary/80 p-1">
+          <div className="mb-6 flex flex-wrap gap-1 rounded-xl bg-secondary/80 p-1">
             {(
               [
                 ["links", "Links", Link2],
@@ -596,13 +598,13 @@ function Dashboard() {
                   >
                     <GripVertical className="mt-2.5 h-4 w-4 shrink-0 cursor-grab text-muted-foreground hover:text-foreground" />
 
-                    <div className="grid flex-1 gap-2 sm:grid-cols-2">
-                      <div>
+                    <div className="grid flex-1 gap-2 sm:grid-cols-2 min-w-0">
+                      <div className="min-w-0">
                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
                           Label
                         </label>
                         <input
-                          className="field"
+                          className="field w-full"
                           value={link.title}
                           placeholder="e.g. My Latest Song"
                           onChange={(e) =>
@@ -610,12 +612,12 @@ function Dashboard() {
                           }
                         />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
                           URL destination
                         </label>
                         <input
-                          className="field"
+                          className="field w-full"
                           value={link.url}
                           placeholder="https://…"
                           onChange={(e) =>
@@ -853,7 +855,7 @@ function Dashboard() {
                             ? "video/mp4,video/webm"
                             : "image/*"
                         }
-                        className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer"
+                        className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file)
@@ -1005,7 +1007,7 @@ function Dashboard() {
                   <input
                     type="file"
                     accept="audio/*"
-                    className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer"
+                    className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-accent cursor-pointer max-w-full"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file)

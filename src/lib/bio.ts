@@ -483,7 +483,9 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
   }
 
   select(_columns?: string) {
-    this.operation = "select";
+    if (this.operation !== "insert" && this.operation !== "update") {
+      this.operation = "select";
+    }
     return this;
   }
 
