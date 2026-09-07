@@ -29,6 +29,7 @@ import {
   Edit3,
   Upload,
   Volume2,
+  Video,
 } from "lucide-react";
 import {
   auth,
@@ -42,6 +43,9 @@ import {
 import { useAuth, useIsAdmin, useMyProfile } from "@/hooks/useAuth";
 import { ProfileView } from "@/components/ProfileView";
 import { PhoneFrame } from "@/components/PhoneFrame";
+import { FrostedGlassToggle } from "@/components/FrostedGlassToggle";
+import { VideoPreviewPlayer } from "@/components/VideoPreviewPlayer";
+import { SocialLinksEditor } from "@/components/SocialLinksEditor";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -63,7 +67,7 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Tab = "links" | "appearance" | "effects";
+type Tab = "links" | "socials" | "appearance" | "effects";
 
 const PRESET_THEMES = [
   {
@@ -144,19 +148,19 @@ const CURATED_WALLPAPERS = [
 const CURATED_VIDEOS = [
   {
     name: "Starry Night",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-star-sky-in-the-night-42864-large.mp4",
+    url: "/videos/starry-night.mp4",
   },
   {
     name: "Neon Tunnel",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-tunnel-of-futuristic-neon-lights-42930-large.mp4",
+    url: "/videos/neon-tunnel.mp4",
   },
   {
     name: "Ocean Waves",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4",
+    url: "/videos/ocean-waves.mp4",
   },
   {
     name: "Gold Fluid",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-gold-particles-moving-in-a-fluid-manner-42981-large.mp4",
+    url: "/videos/gold-particles.mp4",
   },
 ];
 
@@ -212,6 +216,17 @@ function Dashboard() {
   }, [profile, profileLoading, navigate]);
 
   useEffect(() => {
+    if (
+      profile?.background_type === "video" &&
+      profile.background_value?.includes("mixkit.co")
+    ) {
+      setProfile((prev) =>
+        prev ? { ...prev, background_value: CURATED_VIDEOS[0].url } : prev,
+      );
+    }
+  }, [profile?.background_type, profile?.background_value, setProfile]);
+
+  useEffect(() => {
     if (!user) return;
     db.from("links")
       .select("*")
@@ -262,6 +277,23 @@ function Dashboard() {
         finalBgValue = await optimizeImageDataUrl(finalBgValue, "background");
       }
 
+      // Handle video background validation & migration
+      if (profile.background_type === "video") {
+        if (!finalBgValue || finalBgValue.includes("mixkit.co")) {
+          finalBgValue = CURATED_VIDEOS[0].url;
+        } else if (
+          finalBgValue.startsWith("data:video/") &&
+          finalBgValue.length > 900 * 1024
+        ) {
+          setSaving(false);
+          toast.error(
+            "Direct video file is too large for database storage (>650KB). Please select a curated background clip or paste a direct MP4/YouTube link.",
+            { duration: 6000 },
+          );
+          return;
+        }
+      }
+
       // Auto-compress avatar image if large
       if (
         finalAvatarUrl?.startsWith("data:image/") &&
@@ -298,6 +330,8 @@ function Dashboard() {
           card_opacity: profile.card_opacity,
           card_radius: profile.card_radius,
           card_blur: profile.card_blur,
+          glass_intensity: profile.glass_intensity || "medium",
+          social_links: profile.social_links || [],
           accent_color: profile.accent_color,
           music_url: profile.music_url,
           music_enabled: profile.music_enabled,
@@ -654,10 +688,11 @@ function Dashboard() {
           }`}
         >
           {/* Tabs */}
-          <div className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-secondary/80 p-1 w-full min-w-0">
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-secondary/80 p-1 w-full min-w-0">
             {(
               [
                 ["links", "Links", Link2],
+                ["socials", "Social Icons", Share2],
                 ["appearance", "Appearance", Palette],
                 ["effects", "Media & FX", Music4],
               ] as const
@@ -829,6 +864,15 @@ function Dashboard() {
                 live on your page.
               </p>
             </div>
+          )}
+
+          {/* Social Icons tab */}
+          {tab === "socials" && (
+            <SocialLinksEditor
+              socialLinks={profile.social_links || []}
+              onChange={(updated) => patch({ social_links: updated })}
+              accentColor={profile.accent_color}
+            />
           )}
 
           {/* Appearance tab */}
@@ -1012,9 +1056,31 @@ function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3 w-full min-w-0">
+                    {profile.background_type === "video" && (
+                      <div className="space-y-1.5 w-full min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                            <Video className="h-3.5 w-3.5 text-primary" />
+                            Live Background Video Player
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Tests playback & loops before saving
+                          </span>
+                        </div>
+                        <VideoPreviewPlayer
+                          videoUrl={profile.background_value}
+                          accentColor={profile.accent_color}
+                        />
+                      </div>
+                    )}
+
                     <input
                       className="field w-full min-w-0"
-                      placeholder={`Direct URL for ${profile.background_type} (e.g. https://…)`}
+                      placeholder={
+                        profile.background_type === "video"
+                          ? "Direct MP4/WebM URL or YouTube link (e.g. https://…)"
+                          : "Direct image URL (e.g. https://…)"
+                      }
                       value={profile.background_value}
                       onChange={(e) =>
                         patch({ background_value: e.target.value })
@@ -1026,7 +1092,7 @@ function Dashboard() {
                         <Upload className="h-3.5 w-3.5 text-primary" />
                         <span>
                           {profile.background_type === "video"
-                            ? "Upload Video Clip (max 5MB)"
+                            ? "Upload Micro Clip (< 650KB)"
                             : "Upload Wallpaper Image"}
                         </span>
                         <input
@@ -1047,6 +1113,14 @@ function Dashboard() {
                         />
                       </label>
                     </div>
+
+                    {profile.background_type === "video" && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Supports direct MP4/WebM links, YouTube links (which
+                        loop silently as background), or lightweight
+                        micro-clips.
+                      </p>
+                    )}
 
                     {profile.background_type === "image" && (
                       <div className="w-full min-w-0">
@@ -1122,37 +1196,52 @@ function Dashboard() {
 
               {/* Glass styling controls */}
               <div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0">
-                <span className="text-xs font-bold text-foreground block">
-                  Frosted Glass Parameters
-                </span>
-                <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 w-full min-w-0">
-                  <SliderRow
-                    label="Card Opacity"
-                    value={profile.card_opacity}
-                    min={0.1}
-                    max={1}
-                    step={0.05}
-                    display={`${Math.round(profile.card_opacity * 100)}%`}
-                    onChange={(v) => patch({ card_opacity: v })}
-                  />
-                  <SliderRow
-                    label="Corner Radius"
-                    value={profile.card_radius}
-                    min={0}
-                    max={44}
-                    step={1}
-                    display={`${profile.card_radius}px`}
-                    onChange={(v) => patch({ card_radius: v })}
-                  />
-                  <SliderRow
-                    label="Backdrop Blur"
-                    value={profile.card_blur}
-                    min={0}
-                    max={40}
-                    step={1}
-                    display={`${profile.card_blur}px`}
-                    onChange={(v) => patch({ card_blur: v })}
-                  />
+                <FrostedGlassToggle
+                  intensity={profile.glass_intensity || "medium"}
+                  currentOpacity={profile.card_opacity}
+                  currentBlur={profile.card_blur}
+                  onChange={({ intensity, opacity, blur }) =>
+                    patch({
+                      glass_intensity: intensity,
+                      card_opacity: opacity,
+                      card_blur: blur,
+                    })
+                  }
+                />
+
+                <div className="pt-3 border-t border-border/60">
+                  <span className="text-[11px] font-semibold text-muted-foreground block mb-2">
+                    Fine-tune Parameters
+                  </span>
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 w-full min-w-0">
+                    <SliderRow
+                      label="Card Opacity"
+                      value={profile.card_opacity}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      display={`${Math.round(profile.card_opacity * 100)}%`}
+                      onChange={(v) => patch({ card_opacity: v })}
+                    />
+                    <SliderRow
+                      label="Corner Radius"
+                      value={profile.card_radius}
+                      min={0}
+                      max={44}
+                      step={1}
+                      display={`${profile.card_radius}px`}
+                      onChange={(v) => patch({ card_radius: v })}
+                    />
+                    <SliderRow
+                      label="Backdrop Blur"
+                      value={profile.card_blur}
+                      min={0}
+                      max={40}
+                      step={1}
+                      display={`${profile.card_blur}px`}
+                      onChange={(v) => patch({ card_blur: v })}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

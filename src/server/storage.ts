@@ -19,6 +19,15 @@ import firebaseConfig from "../../firebase-applet-config.json";
 const app = initializeApp(firebaseConfig || {});
 const db = getFirestore(app, firebaseConfig?.firestoreDatabaseId);
 
+export type GlassIntensity = "subtle" | "medium" | "heavy" | "ultra";
+
+export type SocialLink = {
+  id: string;
+  platform: string;
+  url: string;
+  active?: boolean;
+};
+
 export type Profile = {
   id: string;
   username: string | null;
@@ -30,6 +39,8 @@ export type Profile = {
   card_opacity: number;
   card_radius: number;
   card_blur: number;
+  glass_intensity?: GlassIntensity;
+  social_links?: SocialLink[];
   accent_color: string;
   music_url: string | null;
   music_enabled: boolean;
@@ -306,6 +317,37 @@ export const serverStorage = {
             bgValue = sanitizeSafeUrl(incoming.background_value) || bgValue;
           }
 
+          const validIntensities = [
+            "subtle",
+            "medium",
+            "heavy",
+            "ultra",
+          ] as const;
+          const glassIntensity = validIntensities.includes(
+            incoming.glass_intensity as GlassIntensity,
+          )
+            ? incoming.glass_intensity
+            : existing.glass_intensity || "medium";
+
+          let socialLinks: SocialLink[] = existing.social_links || [];
+          if (Array.isArray(incoming.social_links)) {
+            socialLinks = incoming.social_links
+              .filter(
+                (s) =>
+                  s &&
+                  typeof s.platform === "string" &&
+                  typeof s.url === "string" &&
+                  s.url.trim().length > 0,
+              )
+              .slice(0, 25)
+              .map((s) => ({
+                id: String(s.id || Math.random().toString(36).substring(2, 9)),
+                platform: String(s.platform).slice(0, 30),
+                url: sanitizeSafeUrl(s.url),
+                active: s.active !== false,
+              }));
+          }
+
           const updated: Profile = {
             ...existing,
             display_name:
@@ -334,6 +376,8 @@ export const serverStorage = {
               typeof incoming.card_blur === "number"
                 ? Math.min(60, Math.max(0, incoming.card_blur))
                 : existing.card_blur,
+            glass_intensity: glassIntensity,
+            social_links: socialLinks,
             accent_color:
               incoming.accent_color &&
               /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color)
@@ -398,6 +442,16 @@ export const serverStorage = {
                 : 24,
             card_blur:
               typeof incoming.card_blur === "number" ? incoming.card_blur : 20,
+            glass_intensity:
+              typeof incoming.glass_intensity === "string" &&
+              ["subtle", "medium", "heavy", "ultra"].includes(
+                incoming.glass_intensity,
+              )
+                ? (incoming.glass_intensity as GlassIntensity)
+                : "medium",
+            social_links: Array.isArray(incoming.social_links)
+              ? incoming.social_links.slice(0, 25)
+              : [],
             accent_color: incoming.accent_color || "#3b82f6",
             music_url: sanitizeSafeUrl(incoming.music_url) || null,
             music_enabled: Boolean(incoming.music_enabled),

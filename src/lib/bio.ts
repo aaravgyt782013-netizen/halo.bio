@@ -1,3 +1,27 @@
+export type GlassIntensity = "subtle" | "medium" | "heavy" | "ultra";
+
+export type SocialPlatform =
+  | "instagram"
+  | "twitter"
+  | "tiktok"
+  | "youtube"
+  | "spotify"
+  | "github"
+  | "discord"
+  | "twitch"
+  | "linkedin"
+  | "soundcloud"
+  | "telegram"
+  | "email"
+  | "website";
+
+export type SocialLink = {
+  id: string;
+  platform: SocialPlatform;
+  url: string;
+  active?: boolean;
+};
+
 export type Profile = {
   id: string;
   username: string | null;
@@ -9,6 +33,8 @@ export type Profile = {
   card_opacity: number;
   card_radius: number;
   card_blur: number;
+  glass_intensity?: GlassIntensity;
+  social_links?: SocialLink[];
   accent_color: string;
   music_url: string | null;
   music_enabled: boolean;
@@ -850,6 +876,8 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
                 card_opacity: 0.65,
                 card_radius: 24,
                 card_blur: 20,
+                glass_intensity: "medium",
+                social_links: [],
                 accent_color: "#3b82f6",
                 music_url: null,
                 music_enabled: false,
@@ -1352,11 +1380,11 @@ export async function uploadMedia(
     }
   }
 
-  // Guard video size
+  // Guard video size for database document limit (1MB max Firestore document)
   if (file.type.startsWith("video/")) {
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 650 * 1024) {
       throw new Error(
-        "Video clip exceeds 2MB. For full video backgrounds, please paste a direct MP4 or video URL.",
+        "Uploaded video clip exceeds 650KB (database document limit). For longer video backgrounds, please paste a direct MP4/WebM URL, a YouTube link, or select a curated video loop.",
       );
     }
   }

@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import type { BioLink, Profile } from "@/lib/bio";
 import { ensureProtocol } from "@/lib/bio";
+import { getPlatformConfig } from "@/lib/socials";
 
 type Props = {
   profile: Profile;
@@ -21,6 +22,19 @@ type Props = {
   onEnter?: () => void;
   onLinkClick?: (link: BioLink) => void;
 };
+
+function getYouTubeId(url?: string | null): string | null {
+  if (!url) return null;
+  try {
+    const trimmed = url.trim();
+    const regExp =
+      /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/;
+    const match = trimmed.match(regExp);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
 
 function getDomainBadge(url: string): string | null {
   try {
@@ -55,6 +69,27 @@ export function ProfileView({
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Auto-migrate legacy broken Mixkit URLs to local background video
+  const resolvedBgValue =
+    profile.background_type === "video" &&
+    profile.background_value?.includes("mixkit.co")
+      ? "/videos/starry-night.mp4"
+      : profile.background_value;
+
+  const ytId =
+    profile.background_type === "video" ? getYouTubeId(resolvedBgValue) : null;
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.defaultMuted = true;
+      videoRef.current.muted = true;
+      videoRef.current.play().catch(() => {
+        // Handled silently for browser restrictions
+      });
+    }
+  }, [resolvedBgValue, profile.background_type]);
 
   useEffect(() => {
     if (preview) setEntered(true);
@@ -128,31 +163,73 @@ export function ProfileView({
     }
   };
 
+  const intensity = profile.glass_intensity || "medium";
+  const saturateMap: Record<string, string> = {
+    subtle: "135%",
+    medium: "165%",
+    heavy: "195%",
+    ultra: "235%",
+  };
+  const borderOpacityMap: Record<string, string> = {
+    subtle: "0.18",
+    medium: "0.28",
+    heavy: "0.42",
+    ultra: "0.62",
+  };
+  const shadowMap: Record<string, string> = {
+    subtle:
+      "0 8px 30px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(255,255,255,0.15)",
+    medium:
+      "0 14px 44px rgba(0,0,0,0.22), inset 0 1px 1px rgba(255,255,255,0.30)",
+    heavy:
+      "0 20px 52px rgba(0,0,0,0.30), inset 0 1px 2px rgba(255,255,255,0.45)",
+    ultra:
+      "0 28px 64px rgba(0,0,0,0.40), inset 0 2px 4px rgba(255,255,255,0.65)",
+  };
+
   const cardStyle = {
     backgroundColor: `color-mix(in oklab, white ${Math.round(profile.card_opacity * 100)}%, transparent)`,
     borderRadius: `${profile.card_radius}px`,
-    backdropFilter: `blur(${profile.card_blur}px) saturate(180%)`,
-    WebkitBackdropFilter: `blur(${profile.card_blur}px) saturate(180%)`,
+    backdropFilter: `blur(${profile.card_blur}px) saturate(${saturateMap[intensity] || "165%"})`,
+    WebkitBackdropFilter: `blur(${profile.card_blur}px) saturate(${saturateMap[intensity] || "165%"})`,
+    border: `1px solid rgba(255, 255, 255, ${borderOpacityMap[intensity] || "0.28"})`,
+    boxShadow: shadowMap[intensity] || undefined,
   } as const;
 
   return (
     <div className="relative h-full w-full overflow-hidden select-none">
       {/* Background layer */}
-      <div className="absolute inset-0">
-        {profile.background_type === "video" && profile.background_value ? (
-          <video
-            className="h-full w-full object-cover"
-            src={profile.background_value}
-            autoPlay
-            loop
-            muted
-            playsInline
-          />
-        ) : profile.background_type === "image" && profile.background_value ? (
+      <div className="absolute inset-0 bg-[#0b0f19] overflow-hidden">
+        {profile.background_type === "video" && resolvedBgValue ? (
+          ytId ? (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <iframe
+                className="pointer-events-none absolute top-1/2 left-1/2 h-[150%] w-[150%] -translate-x-1/2 -translate-y-1/2 object-cover border-0"
+                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&enablejsapi=1`}
+                allow="autoplay; encrypted-media"
+                title="Background Video"
+              />
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              className="h-full w-full object-cover pointer-events-none"
+              src={resolvedBgValue}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onError={() => {
+                console.warn("Video background playback error");
+              }}
+            />
+          )
+        ) : profile.background_type === "image" && resolvedBgValue ? (
           <img
-            src={profile.background_value}
+            src={resolvedBgValue}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover pointer-events-none"
             loading="lazy"
           />
         ) : (
@@ -161,7 +238,7 @@ export function ProfileView({
             style={{ backgroundColor: profile.background_value || "#0b0f19" }}
           />
         )}
-        <div className="absolute inset-0 bg-foreground/15 backdrop-brightness-95" />
+        <div className="pointer-events-none absolute inset-0 bg-foreground/15 backdrop-brightness-95" />
       </div>
 
       {/* Black Enter Screen Overlay */}
@@ -258,6 +335,46 @@ export function ProfileView({
               {profile.bio}
             </p>
           )}
+
+          {/* Social Media Icon Links */}
+          {profile.social_links &&
+            profile.social_links.filter((s) => s.active !== false).length >
+              0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {profile.social_links
+                  .filter((s) => s.active !== false)
+                  .map((soc) => {
+                    const cfg = getPlatformConfig(soc.platform);
+                    const Icon = cfg.icon;
+                    const safeSocUrl = ensureProtocol(soc.url);
+
+                    return (
+                      <a
+                        key={soc.id}
+                        href={preview ? undefined : safeSocUrl || "#"}
+                        target={preview ? undefined : "_blank"}
+                        rel={preview ? undefined : "noreferrer noopener"}
+                        onClick={(e) => {
+                          if (preview) {
+                            e.preventDefault();
+                            toast.info(`Preview: ${cfg.label} link`);
+                          }
+                        }}
+                        className="group relative flex h-9 w-9 items-center justify-center rounded-full border border-glass-border transition-all hover:scale-110 active:scale-95 shadow-sm"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in oklab, white 68%, transparent)",
+                          backdropFilter: `blur(${Math.max(6, profile.card_blur / 2)}px)`,
+                        }}
+                        title={cfg.label}
+                        aria-label={cfg.label}
+                      >
+                        <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />
+                      </a>
+                    );
+                  })}
+              </div>
+            )}
 
           <div className="mt-5 space-y-2.5">
             {links.length === 0 && (
