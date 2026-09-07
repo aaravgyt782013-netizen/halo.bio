@@ -41,8 +41,6 @@ import {
 import { useAuth, useIsAdmin, useMyProfile } from "@/hooks/useAuth";
 import { ProfileView } from "@/components/ProfileView";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { LiquidOrbBackground } from "@/components/LiquidOrbBackground";
-import { motion, AnimatePresence } from "motion/react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -436,229 +434,202 @@ function Dashboard() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
-      {/* Dynamic Animated Liquid Glass Orbs Background */}
-      <LiquidOrbBackground accentColor={profile.accent_color || "#6366f1"} />
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
 
-      {/* Navigation header with liquid glass and tactile bevels */}
-      <header className="sticky top-0 z-30 mx-auto max-w-6xl w-full px-3.5 sm:px-5 py-2.5 sm:py-3 transition-all">
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-t border-white/80 border-b border-black/10 border-x border-white/40 p-2.5 sm:p-3 shadow-[0_10px_30px_rgba(0,0,0,0.06),_inset_0_1px_1px_rgba(255,255,255,0.9)] min-w-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Link
-              to="/"
-              className="font-display text-lg sm:text-xl font-bold tracking-tight text-foreground hover:opacity-85 shrink-0 transition-transform active:scale-95"
-            >
-              halo<span className="text-primary">.bio</span>
-            </Link>
-            <span className="truncate rounded-full neo-sunken px-3 py-1 text-xs font-semibold text-muted-foreground max-w-[130px] sm:max-w-[200px]">
-              @{profile.username}
+      {/* Navigation header */}
+      <header className="mx-auto flex max-w-6xl w-full flex-wrap items-center justify-between gap-2.5 px-3.5 sm:px-5 py-3 sm:py-4 border-b border-border/40 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link
+            to="/"
+            className="font-display text-lg sm:text-xl font-bold tracking-tight text-foreground hover:opacity-85 shrink-0"
+          >
+            halo<span className="text-primary">.bio</span>
+          </Link>
+          <span className="truncate rounded-full bg-secondary/80 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground max-w-[130px] sm:max-w-[200px]">
+            @{profile.username}
+          </span>
+          {isDirty && (
+            <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+              Unsaved
             </span>
-            {isDirty && (
-              <span className="shrink-0 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 animate-pulse">
-                Unsaved
-              </span>
-            )}
-          </div>
+          )}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            {/* Mobile view toggle */}
-            <div className="flex lg:hidden rounded-xl neo-sunken p-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setMobileView("editor")}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  mobileView === "editor"
-                    ? "bg-white dark:bg-slate-800 text-foreground shadow-sm"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <Edit3 className="h-3.5 w-3.5" /> Editor
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileView("preview")}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  mobileView === "preview"
-                    ? "bg-white dark:bg-slate-800 text-foreground shadow-sm"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <Smartphone className="h-3.5 w-3.5" /> Preview
-              </button>
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Mobile view toggle */}
+          <div className="flex lg:hidden rounded-lg bg-secondary p-0.5 shrink-0">
+            <button
               type="button"
-              onClick={() => setShareModalOpen(true)}
-              className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
-              title="Share & QR Code"
+              onClick={() => setMobileView("editor")}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                mobileView === "editor"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
             >
-              <Share2 className="h-3.5 w-3.5" />{" "}
-              <span className="hidden sm:inline">Share</span>
-            </motion.button>
-
-            {isAdmin && (
-              <Link
-                to="/admin"
-                className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3 text-xs shrink-0"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" /> Staff
-              </Link>
-            )}
-
-            {profile.username && (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                onClick={async () => {
-                  if (isDirty) {
-                    await saveProfile();
-                  }
-                  window.open(`/${profile.username}`, "_blank");
-                }}
-                className="btn-liquid-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
-                title="View live public profile (auto-saves changes)"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />{" "}
-                <span className="hidden sm:inline">View Live</span>
-              </motion.button>
-            )}
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={saveProfile}
-              disabled={saving}
-              className="btn-liquid py-1.5 px-3.5 sm:px-4 text-xs shrink-0 inline-flex items-center gap-1.5"
+              <Edit3 className="h-3.5 w-3.5" /> Editor
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileView("preview")}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                mobileView === "preview"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
             >
-              {saving ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              <span>{saving ? "Saving…" : "Save"}</span>
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={async () => {
-                await auth.signOut();
-                navigate({ to: "/" });
-              }}
-              className="btn-liquid-ghost py-1.5 px-2 sm:px-2.5 text-xs shrink-0 text-muted-foreground hover:text-destructive"
-              title="Log out"
-              aria-label="Log out"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </motion.button>
+              <Smartphone className="h-3.5 w-3.5" /> Preview
+            </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShareModalOpen(true)}
+            className="btn-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
+            title="Share & QR Code"
+          >
+            <Share2 className="h-3.5 w-3.5" />{" "}
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="btn-ghost py-1.5 px-2.5 sm:px-3 text-xs shrink-0"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Staff
+            </Link>
+          )}
+
+          {profile.username && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (isDirty) {
+                  await saveProfile();
+                }
+                window.open(`/${profile.username}`, "_blank");
+              }}
+              className="btn-ghost py-1.5 px-2.5 sm:px-3.5 text-xs shrink-0"
+              title="View live public profile (auto-saves changes)"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />{" "}
+              <span className="hidden sm:inline">View Live</span>
+            </button>
+          )}
+
+          <button
+            onClick={saveProfile}
+            disabled={saving}
+            className="btn-primary py-1.5 px-3 sm:px-4 text-xs shrink-0"
+          >
+            <Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}
+          </button>
+
+          <button
+            onClick={async () => {
+              await auth.signOut();
+              navigate({ to: "/" });
+            }}
+            className="btn-ghost py-1.5 px-2 sm:px-2.5 text-xs shrink-0"
+            title="Log out"
+            aria-label="Log out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
       </header>
 
-      {/* Analytics KPI strip with Neomorphic + Liquid Glass Cards */}
-      <div className="mx-auto max-w-6xl w-full px-3 sm:px-5 pt-3 sm:pt-4 min-w-0">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5 w-full">
-          {[
-            {
-              label: "Total Views",
-              val: totalViews,
-              icon: Eye,
-              color: "text-primary",
-              bg: "bg-primary/10",
-              border: "border-primary/20",
-            },
-            {
-              label: "Total Clicks",
-              val: totalClicks,
-              icon: MousePointerClick,
-              color: "text-emerald-500",
-              bg: "bg-emerald-500/10",
-              border: "border-emerald-500/20",
-            },
-            {
-              label: "Click Rate",
-              val: `${ctr}%`,
-              icon: BarChart3,
-              color: "text-blue-500",
-              bg: "bg-blue-500/10",
-              border: "border-blue-500/20",
-            },
-            {
-              label: "Active Links",
-              val: links.length,
-              icon: Link2,
-              color: "text-purple-500",
-              bg: "bg-purple-500/10",
-              border: "border-purple-500/20",
-            },
-          ].map((item) => (
-            <motion.div
-              key={item.label}
-              whileHover={{ y: -2, scale: 1.015 }}
-              transition={{ duration: 0.2 }}
-              className="neo-raised rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0"
-            >
-              <div
-                className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl ${item.bg} ${item.color} border ${item.border} shadow-[0_2px_6px_rgba(0,0,0,0.06),_inset_0_1px_1px_rgba(255,255,255,0.7)]`}
-              >
-                <item.icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
-                  {item.label}
-                </p>
-                <p className="font-display text-base sm:text-lg font-bold text-foreground truncate tracking-tight">
-                  {item.val}
-                </p>
-              </div>
-            </motion.div>
-          ))}
+      {/* Analytics KPI strip */}
+      <div className="mx-auto max-w-6xl w-full px-3 sm:px-5 pt-4 sm:pt-6 min-w-0">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 w-full">
+          <div className="glass rounded-xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Eye className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                Total Views
+              </p>
+              <p className="font-display text-base sm:text-lg font-bold text-foreground truncate">
+                {totalViews}
+              </p>
+            </div>
+          </div>
+
+          <div className="glass rounded-xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success">
+              <MousePointerClick className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                Total Clicks
+              </p>
+              <p className="font-display text-base sm:text-lg font-bold text-foreground truncate">
+                {totalClicks}
+              </p>
+            </div>
+          </div>
+
+          <div className="glass rounded-xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
+              <BarChart3 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                Click Rate
+              </p>
+              <p className="font-display text-base sm:text-lg font-bold text-foreground truncate">
+                {ctr}%
+              </p>
+            </div>
+          </div>
+
+          <div className="glass rounded-xl p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Link2 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                Active Links
+              </p>
+              <p className="font-display text-base sm:text-lg font-bold text-foreground truncate">
+                {links.length}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       <main className="mx-auto grid max-w-6xl w-full min-w-0 gap-6 px-3 sm:px-5 py-4 sm:py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Editor panel with Liquid Glass border & Neomorphic depth */}
+        {/* Editor panel */}
         <section
-          className={`liquid-glass rounded-3xl p-3.5 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.08)] w-full min-w-0 max-w-full overflow-hidden ${
+          className={`glass-panel p-3.5 sm:p-7 shadow-lift w-full min-w-0 max-w-full overflow-hidden ${
             mobileView === "preview" ? "hidden lg:block" : "block"
           }`}
         >
-          {/* Neomorphic Sunken Tabs with Animated Liquid Indicator Pill */}
-          <div className="mb-6 grid grid-cols-3 gap-1 rounded-2xl neo-sunken p-1.5 w-full min-w-0 relative">
+          {/* Tabs */}
+          <div className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-secondary/80 p-1 w-full min-w-0">
             {(
               [
                 ["links", "Links", Link2],
                 ["appearance", "Appearance", Palette],
                 ["effects", "Media & FX", Music4],
               ] as const
-            ).map(([key, label, Icon]) => {
-              const isActive = tab === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  className={`relative inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl px-2 py-2.5 text-[11px] sm:text-xs font-semibold transition-colors min-w-0 truncate z-10 ${
-                    isActive
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabIndicator"
-                      className="absolute inset-0 rounded-xl bg-white dark:bg-slate-800 shadow-[0_4px_14px_rgba(0,0,0,0.1),_inset_0_1px_1px_rgba(255,255,255,0.9)] border-t border-white/80 border-b border-black/10 -z-10"
-                      transition={{
-                        type: "spring",
-                        stiffness: 450,
-                        damping: 32,
-                      }}
-                    />
-                  )}
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{label}</span>
-                </button>
-              );
-            })}
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-semibold transition-all min-w-0 truncate ${
+                  tab === key
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            ))}
           </div>
 
           {/* Links tab */}
@@ -668,14 +639,12 @@ function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground truncate">
                   Your bio links ({links.length})
                 </span>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
+                <button
                   onClick={addLink}
-                  className="btn-liquid py-1 px-3 text-xs shrink-0 inline-flex items-center gap-1"
+                  className="btn-primary py-1 px-3 text-xs shrink-0 inline-flex items-center gap-1"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Link
-                </motion.button>
+                </button>
               </div>
 
               {links.length === 0 ? (
@@ -687,138 +656,127 @@ function Dashboard() {
                     Add your first link to YouTube, Spotify, store, or
                     portfolio.
                   </p>
-                  <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                  <button
                     onClick={addLink}
-                    className="btn-liquid mt-4 py-2 px-4 text-xs"
+                    className="btn-primary mt-4 py-2 px-4 text-xs"
                   >
                     <Plus className="h-4 w-4" /> Add your first link
-                  </motion.button>
+                  </button>
                 </div>
               ) : (
-                <AnimatePresence>
-                  {links.map((link, i) => (
-                    <motion.div
-                      key={link.id}
-                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      draggable
-                      onDragStart={() => (dragIndex.current = i)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => onDrop(i)}
-                      className="neo-raised flex flex-col sm:flex-row items-stretch sm:items-start gap-2.5 p-3 sm:p-3.5 rounded-2xl min-w-0 w-full relative overflow-hidden group"
-                    >
-                      {/* Subtle liquid sheen reflection on hover */}
-                      <div className="pointer-events-none absolute -inset-full opacity-0 group-hover:opacity-10 transition-opacity duration-700 mix-blend-overlay rotate-12 bg-gradient-to-r from-transparent via-white to-transparent" />
-
-                      <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
-                        <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground hover:text-foreground hidden sm:block mt-2.5" />
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden">
-                          Link #{i + 1}
-                        </span>
-                        <div className="flex items-center gap-0.5 sm:hidden">
-                          <button
-                            type="button"
-                            onClick={() => moveLink(i, "up")}
-                            disabled={i === 0}
-                            className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveLink(i, "down")}
-                            disabled={i === links.length - 1}
-                            className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => removeLink(link.id)}
-                            aria-label={`Delete ${link.title}`}
-                            className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors ml-1"
-                            title="Delete link"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                links.map((link, i) => (
+                  <div
+                    key={link.id}
+                    draggable
+                    onDragStart={() => (dragIndex.current = i)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => onDrop(i)}
+                    className="surface flex flex-col sm:flex-row items-stretch sm:items-start gap-2.5 p-3 sm:p-3.5 rounded-xl border border-border/70 min-w-0 w-full"
+                  >
+                    <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
+                      <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground hover:text-foreground hidden sm:block mt-2.5" />
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase sm:hidden">
+                        Link #{i + 1}
+                      </span>
+                      <div className="flex items-center gap-0.5 sm:hidden">
+                        <button
+                          type="button"
+                          onClick={() => moveLink(i, "up")}
+                          disabled={i === 0}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveLink(i, "down")}
+                          disabled={i === links.length - 1}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeLink(link.id)}
+                          aria-label={`Delete ${link.title}`}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors ml-1"
+                          title="Delete link"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
+                    </div>
 
-                      <div className="grid flex-1 gap-2.5 sm:grid-cols-2 min-w-0 w-full">
-                        <div className="min-w-0 w-full">
-                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                            Label
-                          </label>
-                          <input
-                            className="field w-full min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
-                            value={link.title}
-                            placeholder="e.g. My Latest Song"
-                            onChange={(e) =>
-                              updateLink(link.id, { title: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="min-w-0 w-full">
-                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                            URL destination
-                          </label>
-                          <input
-                            className="field w-full min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
-                            value={link.url}
-                            placeholder="https://…"
-                            onChange={(e) =>
-                              updateLink(link.id, { url: e.target.value })
-                            }
-                            onBlur={(e) =>
-                              updateLink(link.id, {
-                                url: ensureProtocol(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
+                    <div className="grid flex-1 gap-2 sm:grid-cols-2 min-w-0 w-full">
+                      <div className="min-w-0 w-full">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                          Label
+                        </label>
+                        <input
+                          className="field w-full min-w-0 text-xs sm:text-sm"
+                          value={link.title}
+                          placeholder="e.g. My Latest Song"
+                          onChange={(e) =>
+                            updateLink(link.id, { title: e.target.value })
+                          }
+                        />
                       </div>
+                      <div className="min-w-0 w-full">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                          URL destination
+                        </label>
+                        <input
+                          className="field w-full min-w-0 text-xs sm:text-sm"
+                          value={link.url}
+                          placeholder="https://…"
+                          onChange={(e) =>
+                            updateLink(link.id, { url: e.target.value })
+                          }
+                          onBlur={(e) =>
+                            updateLink(link.id, {
+                              url: ensureProtocol(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
 
-                      <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0 pt-1">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => moveLink(i, "up")}
-                            disabled={i === 0}
-                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-black/5 hover:text-foreground disabled:opacity-30 transition-colors"
-                            title="Move up"
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveLink(i, "down")}
-                            disabled={i === links.length - 1}
-                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-black/5 hover:text-foreground disabled:opacity-30 transition-colors"
-                            title="Move down"
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => removeLink(link.id)}
-                            aria-label={`Delete ${link.title}`}
-                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 transition-colors ml-0.5"
-                            title="Delete link"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <span className="text-[10px] font-semibold text-muted-foreground pr-1">
-                          {link.clicks || 0} clicks
-                        </span>
+                    <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 pt-1">
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moveLink(i, "up")}
+                          disabled={i === 0}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveLink(i, "down")}
+                          disabled={i === links.length - 1}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeLink(link.id)}
+                          aria-label={`Delete ${link.title}`}
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors ml-1"
+                          title="Delete link"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                      <span className="text-[10px] font-medium text-muted-foreground pr-1">
+                        {link.clicks || 0} clicks
+                      </span>
+                    </div>
+                  </div>
+                ))
               )}
 
               <p className="text-xs text-muted-foreground pt-1">
@@ -1173,87 +1131,65 @@ function Dashboard() {
                 </p>
               </label>
 
-              {/* Skeuomorphic & Neomorphic Background Soundtrack Toggle Switch */}
-              <div className="neo-raised flex items-center justify-between p-4 sm:p-5 rounded-2xl min-w-0 w-full relative overflow-hidden">
+              <div className="surface flex items-center justify-between p-3.5 sm:p-4 rounded-xl border border-border/80 min-w-0 w-full">
                 <div className="min-w-0 pr-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold tracking-tight text-foreground truncate">
-                      Background Soundtrack
-                    </p>
-                    {profile.music_enabled && (
-                      <span className="flex items-center gap-0.5 h-3 px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-semibold border border-emerald-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1" />
-                        Enabled
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Plays automatically with audio unlock once the visitor taps
-                    the enter screen.
+                  <p className="text-sm font-semibold truncate">
+                    Background Soundtrack
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Plays automatically once the visitor taps the enter screen.
                   </p>
                 </div>
-
-                {/* Skeuomorphic tactile physical toggle switch */}
                 <button
                   type="button"
                   onClick={() =>
                     patch({ music_enabled: !profile.music_enabled })
                   }
                   aria-label="Toggle background music"
-                  className={`relative h-8 w-14 shrink-0 rounded-full p-1 cursor-pointer transition-colors duration-300 skeuo-switch-track ${
-                    profile.music_enabled
-                      ? "bg-gradient-to-r from-primary to-blue-500"
-                      : "bg-slate-300 dark:bg-slate-800"
+                  className={`h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors ${
+                    profile.music_enabled ? "bg-primary" : "bg-input"
                   }`}
                 >
-                  <motion.span
-                    animate={{ x: profile.music_enabled ? 24 : 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    className="block h-6 w-6 rounded-full skeuo-switch-knob"
+                  <span
+                    className={`block h-6 w-6 rounded-full bg-card shadow-soft transition-transform ${
+                      profile.music_enabled ? "translate-x-5" : ""
+                    }`}
                   />
                 </button>
               </div>
 
-              <div className="space-y-3.5 w-full min-w-0">
+              <div className="space-y-3 w-full min-w-0">
                 <label className="block w-full min-w-0">
                   <span className="label-text">Audio Track (.mp3 URL)</span>
-                  <div className="flex flex-col sm:flex-row gap-2.5 w-full min-w-0">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
                     <input
-                      className="field flex-1 min-w-0 text-xs sm:text-sm bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm border-t border-black/10 border-b border-white/60 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]"
+                      className="field flex-1 min-w-0 text-xs sm:text-sm"
                       placeholder="https://…/track.mp3"
                       value={profile.music_url ?? ""}
                       onChange={(e) => patch({ music_url: e.target.value })}
                     />
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
+                    <button
                       type="button"
                       onClick={() => toggleTestAudio(profile.music_url)}
-                      className="btn-liquid-ghost py-2 px-3.5 text-xs shrink-0 flex items-center justify-center gap-2"
+                      className="btn-ghost py-2 px-3 text-xs shrink-0 flex items-center justify-center gap-1.5"
                     >
                       {testAudioPlaying &&
                       testedAudioUrl === profile.music_url ? (
                         <>
-                          <Square className="h-3.5 w-3.5 fill-current text-rose-500" />
-                          <span>Stop</span>
-                          {/* Animated equalizer bars */}
-                          <span className="flex items-center gap-0.5 h-3 ml-1">
-                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-1" />
-                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-2" />
-                            <span className="w-0.5 bg-primary rounded-full animate-soundwave-3" />
-                          </span>
+                          <Square className="h-3.5 w-3.5 fill-current" /> Stop
                         </>
                       ) : (
                         <>
-                          <Play className="h-3.5 w-3.5 fill-current text-primary" />
-                          <span>Test Audio</span>
+                          <Play className="h-3.5 w-3.5 fill-current" /> Test
+                          Audio
                         </>
                       )}
-                    </motion.button>
+                    </button>
                   </div>
                 </label>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="btn-liquid-ghost py-1.5 px-3.5 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-full shrink-0">
+                  <label className="btn-ghost py-1.5 px-3 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-primary transition-all shrink-0">
                     <Upload className="h-3.5 w-3.5 text-primary" />
                     <span>Upload MP3 File (max 3.5MB)</span>
                     <input
@@ -1271,24 +1207,23 @@ function Dashboard() {
                   </label>
                 </div>
 
-                {/* Curated Soundtracks with Neomorphic Cards and Equalizers */}
-                <div className="w-full min-w-0 pt-3">
-                  <span className="text-[11px] font-bold text-muted-foreground block mb-2 uppercase tracking-wider">
+                {/* Curated Soundtracks */}
+                <div className="w-full min-w-0 pt-2">
+                  <span className="text-[11px] font-semibold text-muted-foreground block mb-1.5">
                     Or select a curated ambient background track:
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full min-w-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full min-w-0">
                     {CURATED_AUDIO.map((track) => {
                       const isCurrent = profile.music_url === track.url;
                       const isThisPlaying =
                         testAudioPlaying && testedAudioUrl === track.url;
                       return (
-                        <motion.div
+                        <div
                           key={track.name}
-                          whileHover={{ y: -1.5 }}
-                          className={`flex items-center justify-between gap-2 p-3 rounded-xl border transition-all ${
+                          className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition-all ${
                             isCurrent
-                              ? "neo-raised border-primary/40 ring-1 ring-primary/30"
-                              : "bg-white/50 dark:bg-slate-800/40 border-border/80 hover:border-primary/40"
+                              ? "border-primary bg-primary/5"
+                              : "border-border/80 bg-card hover:border-border"
                           }`}
                         >
                           <button
@@ -1301,11 +1236,8 @@ function Dashboard() {
                             }
                             className="flex-1 text-left min-w-0"
                           >
-                            <p className="text-xs font-semibold text-foreground truncate flex items-center gap-1">
+                            <p className="text-xs font-semibold text-foreground truncate">
                               {track.name}
-                              {isCurrent && (
-                                <Check className="h-3 w-3 text-primary shrink-0" />
-                              )}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
                               {isCurrent ? "Active track" : "Click to select"}
@@ -1314,20 +1246,16 @@ function Dashboard() {
                           <button
                             type="button"
                             onClick={() => toggleTestAudio(track.url)}
-                            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground shrink-0"
+                            className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0"
                             title={isThisPlaying ? "Stop" : "Preview"}
                           >
                             {isThisPlaying ? (
-                              <span className="flex items-center gap-0.5 h-3.5">
-                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-1" />
-                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-2" />
-                                <span className="w-0.5 bg-primary rounded-full animate-soundwave-3" />
-                              </span>
+                              <Square className="h-3.5 w-3.5 fill-current text-primary" />
                             ) : (
-                              <Play className="h-3.5 w-3.5" />
+                              <Volume2 className="h-3.5 w-3.5" />
                             )}
                           </button>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
@@ -1373,91 +1301,77 @@ function Dashboard() {
         </aside>
       </main>
 
-      {/* Share & QR Code Modal with Liquid Glass & Motion */}
-      <AnimatePresence>
-        {shareModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0, y: 16 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.92, opacity: 0, y: 16 }}
-              transition={{ type: "spring", stiffness: 350, damping: 26 }}
-              className="liquid-glass rounded-3xl w-full max-w-sm p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.3)] relative overflow-hidden"
+      {/* Share & QR Code Modal */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-float-in">
+          <div className="glass-panel w-full max-w-sm p-6 shadow-lift relative">
+            <button
+              type="button"
+              onClick={() => setShareModalOpen(false)}
+              className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground"
             >
+              <X className="h-4 w-4" />
+            </button>
+
+            <h3 className="font-display text-lg font-bold text-foreground">
+              Share your Halo page
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Scan this QR code with any smartphone or copy your link.
+            </p>
+
+            <div className="mt-5 flex justify-center">
+              <div className="rounded-2xl border border-border bg-white p-3 shadow-soft">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                    publicUrl,
+                  )}`}
+                  alt="QR Code"
+                  className="h-40 w-40"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center gap-2 rounded-xl border border-input bg-secondary/50 p-2">
+              <span className="truncate text-xs font-mono text-foreground flex-1 pl-1">
+                {publicUrl}
+              </span>
               <button
                 type="button"
-                onClick={() => setShareModalOpen(false)}
-                className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(publicUrl);
+                    setCopied(true);
+                    toast.success("Copied to clipboard!");
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    toast.error("Could not copy URL");
+                  }
+                }}
+                className="btn-primary py-1 px-2.5 text-xs shrink-0"
               >
-                <X className="h-4 w-4" />
+                {copied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {copied ? "Copied" : "Copy"}
               </button>
+            </div>
 
-              <h3 className="font-display text-lg font-bold text-foreground">
-                Share your Halo page
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Scan this QR code with any smartphone or copy your link.
-              </p>
-
-              <div className="mt-5 flex justify-center">
-                <div className="rounded-2xl border-4 border-white/80 dark:border-slate-800 bg-white p-3.5 shadow-xl">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                      publicUrl,
-                    )}`}
-                    alt="QR Code"
-                    className="h-40 w-40"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-5 flex items-center gap-2 rounded-2xl neo-sunken p-1.5">
-                <span className="truncate text-xs font-mono text-foreground flex-1 pl-2">
-                  {publicUrl}
-                </span>
-                <motion.button
-                  whileTap={{ scale: 0.93 }}
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(publicUrl);
-                      setCopied(true);
-                      toast.success("Copied to clipboard!");
-                      setTimeout(() => setCopied(false), 2000);
-                    } catch {
-                      toast.error("Could not copy URL");
-                    }
-                  }}
-                  className="btn-liquid py-1.5 px-3 text-xs shrink-0 inline-flex items-center gap-1.5"
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                  <span>{copied ? "Copied" : "Copy"}</span>
-                </motion.button>
-              </div>
-
-              <div className="mt-4">
-                <a
-                  href={publicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-liquid-ghost w-full justify-center text-xs py-2 inline-flex items-center gap-1.5"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
-                </a>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="mt-4">
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost w-full justify-center text-xs"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
