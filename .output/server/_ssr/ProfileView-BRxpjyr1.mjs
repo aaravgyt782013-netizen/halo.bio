@@ -1,10 +1,10 @@
 import { r as __toESM } from "../_runtime.mjs";
-import { i as ensureProtocol } from "./bio-Drf3dUJc.mjs";
+import { i as ensureProtocol } from "./bio-DvztBpRh.mjs";
 import { r as require_react } from "../_libs/react+tanstack__react-query.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { t as require_jsx_dev_runtime } from "../_libs/react.mjs";
 import { B as BadgeCheck, L as Check, M as Eye, P as ExternalLink, m as Share2, n as VolumeX, r as Volume2, x as Music } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/ProfileView-4DZC1nlM.js
+//#region node_modules/.nitro/vite/services/ssr/assets/ProfileView-BRxpjyr1.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_dev_runtime = require_jsx_dev_runtime();
 var _jsxFileName = "/app/applet/src/components/ProfileView.tsx";

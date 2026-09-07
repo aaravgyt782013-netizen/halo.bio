@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/assets/bio-Drf3dUJc.js
+//#region node_modules/.nitro/vite/services/ssr/assets/bio-DvztBpRh.js
 var USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
 function normalizeUsername(value) {
 	return value.toLowerCase().replace(/[^a-z0-9_.]/g, "").slice(0, 20);
@@ -195,7 +195,7 @@ var auth = {
 	async signInWithGoogle() {
 		try {
 			const { signInWithPopup, GoogleAuthProvider } = await import("../_libs/firebase.mjs").then((n) => n.t);
-			const { firebaseAuth } = await import("./firebase-rIVRSyAw.mjs");
+			const { firebaseAuth } = await import("./firebase-BbWcXvj0.mjs");
 			const idToken = await (await signInWithPopup(firebaseAuth, new GoogleAuthProvider())).user.getIdToken();
 			const res = await fetch("/api/auth/google", {
 				method: "POST",

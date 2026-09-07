@@ -2,16 +2,14 @@ import { n as __exportAll } from "../_runtime.mjs";
 import { o as initializeApp } from "../_libs/@firebase/app+[...].mjs";
 import "../_libs/firebase.mjs";
 import { a as setDoc, c as collection, i as query, l as doc, n as getDoc, o as updateDoc, r as getDocs, s as where, t as deleteDoc, u as getFirestore } from "../_libs/@firebase/firestore+[...].mjs";
-import processModule from "node:process";
 import { Buffer } from "node:buffer";
 import * as crypto from "node:crypto";
-import * as fs from "node:fs";
-import * as path from "node:path";
 //#region node_modules/.nitro/vite/services/ssr/index.js
 var ssr_exports = /* @__PURE__ */ __exportAll({
 	default: () => server_default,
 	getSessionFromRequest: () => getSessionFromRequest,
-	t: () => renderErrorPage
+	n: () => renderErrorPage,
+	t: () => firebase_applet_config_default
 });
 var lastCapturedError;
 var TTL_MS = 5e3;
@@ -176,15 +174,20 @@ function verifyPasswordServer(plainInput, storedRecord) {
 function generateSessionToken() {
 	return `${crypto.randomUUID()}.${crypto.randomBytes(32).toString("hex")}`;
 }
-var firebaseConfig = {};
-try {
-	const configPath = path.resolve(processModule.cwd(), "firebase-applet-config.json");
-	firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-} catch (e) {
-	console.warn("No firebase config");
-}
-var app = initializeApp(firebaseConfig || {});
-var db = getFirestore(app, firebaseConfig?.firestoreDatabaseId);
+var firebase_applet_config_default = {
+	projectId: "sound-studio-rds98",
+	appId: "1:126595014353:web:587696198fe8e9716c6ff0",
+	apiKey: "AIzaSyDiTZdwgUJDkX0yCfjRTktWak4lSqbswyI",
+	authDomain: "sound-studio-rds98.firebaseapp.com",
+	firestoreDatabaseId: "ai-studio-halobio-7f8545bf-507e-46a5-b9ed-b8779c161271",
+	storageBucket: "sound-studio-rds98.firebasestorage.app",
+	messagingSenderId: "126595014353",
+	measurementId: "",
+	oAuthClientId: "126595014353-uqdm93ooerv3um4f7n0sj1su2ub0phg3.apps.googleusercontent.com",
+	recaptchaSiteKey: ""
+};
+var app = initializeApp(firebase_applet_config_default || {});
+var db = getFirestore(app, firebase_applet_config_default?.firestoreDatabaseId);
 function sanitizeSafeUrl(url) {
 	if (!url) return "";
 	const trimmed = url.trim();
@@ -555,7 +558,7 @@ function checkRateLimit(key, limit, windowMs) {
 }
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./server-CSkh4Krr.mjs").then((n) => n.t).then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./server-BmtIwE4h.mjs").then((n) => n.t).then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 function jsonResponse(data, status = 200, extraHeaders = {}) {
@@ -691,10 +694,7 @@ var server_default = { async fetch(request, env, ctx) {
 				if (!idToken) return jsonResponse({ error: "No ID token provided" }, 400);
 				let apiKey = "";
 				try {
-					const path = await import("node:path");
-					const fsNode = await import("node:fs");
-					const configPath = path.resolve(processModule.cwd(), "firebase-applet-config.json");
-					apiKey = JSON.parse(fsNode.readFileSync(configPath, "utf-8")).apiKey;
+					apiKey = firebase_applet_config_default.apiKey;
 				} catch (e) {
 					console.warn("Could not load API key for Google verification", e);
 				}
@@ -937,4 +937,4 @@ var server_default = { async fetch(request, env, ctx) {
 	}
 } };
 //#endregion
-export { server_default as default, getSessionFromRequest, ssr_exports as n, renderErrorPage as t };
+export { server_default as default, getSessionFromRequest, renderErrorPage as n, ssr_exports as r, firebase_applet_config_default as t };

@@ -1,7 +1,7 @@
 import { n as __exportAll } from "../_runtime.mjs";
 import { s as registerVersion } from "./@firebase/app+[...].mjs";
-import { r as signInWithPopup, t as GoogleAuthProvider } from "./firebase__auth.mjs";
 import "./@firebase/firestore+[...].mjs";
+import { r as signInWithPopup, t as GoogleAuthProvider } from "./firebase__auth.mjs";
 //#region node_modules/firebase/app/dist/esm/index.esm.js
 /**
 * @license

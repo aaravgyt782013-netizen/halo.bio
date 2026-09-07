@@ -1,11 +1,11 @@
 import { r as __toESM } from "./_runtime.mjs";
-import { a as fetchProfileByUsername, r as db } from "./_ssr/bio-Drf3dUJc.mjs";
+import { a as fetchProfileByUsername, r as db } from "./_ssr/bio-DvztBpRh.mjs";
 import { r as require_react } from "./_libs/react+tanstack__react-query.mjs";
 import { v as Link } from "./_libs/@tanstack/react-router+[...].mjs";
 import { t as require_jsx_dev_runtime } from "./_libs/react.mjs";
-import { r as Route$4 } from "./_ssr/router-B7cgKpxn.mjs";
-import { t as ProfileView } from "./_ssr/ProfileView-4DZC1nlM.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/_username-BAS3nZvT.js
+import { r as Route$4 } from "./_ssr/router-e2mkGIq_.mjs";
+import { t as ProfileView } from "./_ssr/ProfileView-BRxpjyr1.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/_username-CY4jF09H.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_dev_runtime = require_jsx_dev_runtime();
 var _jsxFileName = "/app/applet/src/routes/$username.tsx?tsr-split=notFoundComponent";

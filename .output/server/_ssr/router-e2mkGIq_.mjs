@@ -1,12 +1,12 @@
 import { r as __toESM } from "../_runtime.mjs";
-import { a as fetchProfileByUsername } from "./bio-Drf3dUJc.mjs";
+import { a as fetchProfileByUsername } from "./bio-DvztBpRh.mjs";
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
 import { r as require_react, t as QueryClientProvider } from "../_libs/react+tanstack__react-query.mjs";
 import { _ as createRootRouteWithContext, b as useRouter, d as HeadContent, g as createFileRoute, h as lazyRouteComponent, m as Outlet, p as createRouter, u as Scripts, v as Link, z as notFound } from "../_libs/@tanstack/react-router+[...].mjs";
 import { t as QueryClient } from "../_libs/tanstack__query-core.mjs";
 import { t as Toaster } from "../_libs/sonner.mjs";
 import { t as require_jsx_dev_runtime } from "../_libs/react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/router-B7cgKpxn.js
+//#region node_modules/.nitro/vite/services/ssr/assets/router-e2mkGIq_.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_dev_runtime = require_jsx_dev_runtime();
 var styles_default = "/assets/styles-F9SRBI-7.css";
@@ -262,7 +262,7 @@ function RootComponent() {
 		columnNumber: 5
 	}, this);
 }
-var $$splitComponentImporter$5 = () => import("./routes-BFbFYIDp.mjs");
+var $$splitComponentImporter$5 = () => import("./routes-CW2QJTTU.mjs");
 var Route$5 = createFileRoute("/")({
 	head: () => ({ meta: [
 		{ title: "Halo — Media-rich link in bio pages" },
@@ -281,8 +281,8 @@ var Route$5 = createFileRoute("/")({
 	] }),
 	component: lazyRouteComponent($$splitComponentImporter$5, "component")
 });
-var $$splitComponentImporter$4 = () => import("../_username-DYUtlEbb.mjs");
-var $$splitNotFoundComponentImporter = () => import("../_username-BAS3nZvT.mjs");
+var $$splitComponentImporter$4 = () => import("../_username-BR9YvJiN.mjs");
+var $$splitNotFoundComponentImporter = () => import("../_username-CY4jF09H.mjs");
 var Route$4 = createFileRoute("/$username")({
 	loader: async ({ params }) => {
 		const result = await fetchProfileByUsername(params.username);
@@ -316,7 +316,7 @@ var Route$4 = createFileRoute("/$username")({
 	notFoundComponent: lazyRouteComponent($$splitNotFoundComponentImporter, "notFoundComponent"),
 	component: lazyRouteComponent($$splitComponentImporter$4, "component")
 });
-var $$splitComponentImporter$3 = () => import("./admin-JYVDXgsL.mjs");
+var $$splitComponentImporter$3 = () => import("./admin-DJtR_mr2.mjs");
 var Route$3 = createFileRoute("/admin")({
 	head: () => ({ meta: [
 		{ title: "Staff portal — Halo" },
@@ -339,7 +339,7 @@ var Route$3 = createFileRoute("/admin")({
 	] }),
 	component: lazyRouteComponent($$splitComponentImporter$3, "component")
 });
-var $$splitComponentImporter$2 = () => import("./auth-CNTt6fDV.mjs");
+var $$splitComponentImporter$2 = () => import("./auth-CPTnPg0S.mjs");
 var Route$2 = createFileRoute("/auth")({
 	validateSearch: (search) => ({
 		mode: search["mode"] === "signup" ? "signup" : "login",
@@ -362,7 +362,7 @@ var Route$2 = createFileRoute("/auth")({
 	] }),
 	component: lazyRouteComponent($$splitComponentImporter$2, "component")
 });
-var $$splitComponentImporter$1 = () => import("./claim-DQTgZY7Q.mjs");
+var $$splitComponentImporter$1 = () => import("./claim-DhkGnwzF.mjs");
 var Route$1 = createFileRoute("/claim")({
 	head: () => ({ meta: [
 		{ title: "Claim your username — Halo" },
@@ -381,7 +381,7 @@ var Route$1 = createFileRoute("/claim")({
 	] }),
 	component: lazyRouteComponent($$splitComponentImporter$1, "component")
 });
-var $$splitComponentImporter = () => import("./dashboard-BOI-NZyR.mjs");
+var $$splitComponentImporter = () => import("./dashboard-B4c1RS3o.mjs");
 var Route = createFileRoute("/dashboard")({
 	head: () => ({ meta: [
 		{ title: "Builder — Halo bio page" },

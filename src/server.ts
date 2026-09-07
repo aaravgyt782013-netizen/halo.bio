@@ -5,6 +5,8 @@ import { renderErrorPage } from "./lib/error-page";
 import { serverStorage } from "./server/storage";
 import { checkRateLimit } from "./server/rate-limiter";
 import { hashPasswordServer, verifyPasswordServer } from "./server/crypto";
+// @ts-ignore
+import fbConfig from "../firebase-applet-config.json";
 
 type ServerEntry = {
   fetch: (
@@ -288,11 +290,6 @@ export default {
 
             let apiKey = "";
             try {
-              // Read from process.cwd() / firebase-applet-config.json
-              const path = await import("node:path");
-              const fsNode = await import("node:fs");
-              const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-              const fbConfig = JSON.parse(fsNode.readFileSync(configPath, "utf-8"));
               apiKey = fbConfig.apiKey;
             } catch (e) {
               console.warn("Could not load API key for Google verification", e);

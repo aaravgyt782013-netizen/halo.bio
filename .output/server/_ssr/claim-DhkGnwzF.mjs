@@ -1,12 +1,12 @@
 import { r as __toESM } from "../_runtime.mjs";
-import { o as normalizeUsername, r as db, t as USERNAME_RE } from "./bio-Drf3dUJc.mjs";
+import { o as normalizeUsername, r as db, t as USERNAME_RE } from "./bio-DvztBpRh.mjs";
 import { r as require_react } from "../_libs/react+tanstack__react-query.mjs";
 import { y as useNavigate } from "../_libs/@tanstack/react-router+[...].mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { t as require_jsx_dev_runtime } from "../_libs/react.mjs";
 import { D as LoaderCircle, L as Check, f as ShieldCheck, p as ShieldAlert, t as X } from "../_libs/lucide-react.mjs";
-import { r as useMyProfile, t as useAuth } from "./useAuth-BNvBSvSQ.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/claim-DQTgZY7Q.js
+import { r as useMyProfile, t as useAuth } from "./useAuth-CtUGMe9k.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/claim-DhkGnwzF.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_dev_runtime = require_jsx_dev_runtime();
 var _jsxFileName = "/app/applet/src/routes/claim.tsx?tsr-split=component";

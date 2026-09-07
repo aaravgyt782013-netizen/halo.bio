@@ -5,15 +5,8 @@ import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, d
 
 
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-let firebaseConfig: any = {};
-try {
-  const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-  firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-} catch (e) {
-  console.warn("No firebase config");
-}
+// @ts-ignore
+import firebaseConfig from "../../firebase-applet-config.json";
 
 
 const app = initializeApp(firebaseConfig || {});

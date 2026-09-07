@@ -1,7 +1,7 @@
 import { r as __toESM } from "../_runtime.mjs";
-import { n as auth, r as db } from "./bio-Drf3dUJc.mjs";
+import { n as auth, r as db } from "./bio-DvztBpRh.mjs";
 import { r as require_react } from "../_libs/react+tanstack__react-query.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/useAuth-BNvBSvSQ.js
+//#region node_modules/.nitro/vite/services/ssr/assets/useAuth-CtUGMe9k.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 function useAuth() {
 	const [session, setSession] = (0, import_react.useState)(null);
