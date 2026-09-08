@@ -373,11 +373,9 @@ export function ProfileView({
                     const Icon = cfg.icon;
                     const safeSocUrl = ensureProtocol(soc.url);
                     const label = soc.title || cfg.label;
-                    const isCustom =
-                      !!soc.icon_url || soc.platform === "custom";
+                    const isCustom = !!soc.icon_url || soc.platform === "custom";
                     // If remove_bg is true (or defaulted for custom icons), no button background/border is rendered
-                    const noBg =
-                      soc.remove_bg !== undefined ? soc.remove_bg : isCustom;
+                    const noBg = soc.remove_bg !== undefined ? soc.remove_bg : isCustom;
                     const fitMode = soc.fit_mode || "cover";
 
                     return (
@@ -399,10 +397,7 @@ export function ProfileView({
                         }`}
                         style={
                           noBg
-                            ? {
-                                backgroundColor: "transparent",
-                                backdropFilter: "none",
-                              }
+                            ? { backgroundColor: "transparent", backdropFilter: "none" }
                             : {
                                 backgroundColor:
                                   "color-mix(in oklab, white 68%, transparent)",

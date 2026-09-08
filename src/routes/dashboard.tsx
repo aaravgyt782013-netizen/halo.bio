@@ -294,16 +294,14 @@ function Dashboard() {
             const uploadedUrl = await uploadMedia(user.id, file, "backgrounds");
             finalBgValue = uploadedUrl;
           } catch (vidErr) {
-            console.error(
-              "Auto-migrating video to media server failed:",
-              vidErr,
-            );
-            if (finalBgValue.length > 800 * 1024) {
+            console.error("Auto-migrating video to media server failed:", vidErr);
+            if (finalBgValue.length > 900 * 1024) {
+              setSaving(false);
               toast.error(
-                "Legacy video file exceeds database size limits. It has been reset. Please upload your video again using the new Upload button.",
+                "Video file exceeds database size limits. Please select a video file to upload directly or paste an external video link.",
                 { duration: 6000 },
               );
-              finalBgValue = CURATED_VIDEOS[0].url;
+              return;
             }
           }
         }

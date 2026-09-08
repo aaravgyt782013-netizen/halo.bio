@@ -2,11 +2,7 @@ import { n as __exportAll } from "../_runtime.mjs";
 import { o as initializeApp } from "../_libs/@firebase/app+[...].mjs";
 import "../_libs/firebase.mjs";
 import { a as setDoc, c as collection, i as query, l as doc, n as getDoc, o as updateDoc, r as getDocs, s as where, t as deleteDoc, u as getFirestore } from "../_libs/@firebase/firestore+[...].mjs";
-import processModule from "node:process";
 import { Buffer } from "node:buffer";
-import { Readable } from "node:stream";
-import fs from "node:fs";
-import path from "node:path";
 import * as crypto from "node:crypto";
 //#region node_modules/.nitro/vite/services/ssr/index.js
 var ssr_exports = /* @__PURE__ */ __exportAll({
@@ -196,7 +192,7 @@ function sanitizeSafeUrl(url) {
 	if (!url) return "";
 	const trimmed = url.trim();
 	if (/^(javascript|vbscript|file):/i.test(trimmed)) return "";
-	if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/") && !trimmed.startsWith("data:audio/") && !trimmed.startsWith("data:video/")) return "";
+	if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/")) return "";
 	return trimmed;
 }
 var view_cooldowns = {};
@@ -354,114 +350,41 @@ var serverStorage = {
 		if (payload.profiles && Array.isArray(payload.profiles)) for (const incoming of payload.profiles) {
 			if (!isAdmin && incoming.id !== userId) continue;
 			const snap = await getDoc(doc(db, "profiles", incoming.id));
-			const nowIso = (/* @__PURE__ */ new Date()).toISOString();
 			if (snap.exists()) {
 				const existing = snap.data();
 				let safeUsername = existing.username;
 				if (incoming.username && incoming.username.toLowerCase() !== existing.username?.toLowerCase()) {
 					if ((await this.isUsernameAvailable(incoming.username, existing.id)).available) safeUsername = incoming.username.toLowerCase().trim();
 				}
-				const bgType = [
-					"color",
-					"image",
-					"video"
-				].includes(incoming.background_type) ? incoming.background_type : existing.background_type;
-				let bgValue = existing.background_value;
-				if (bgType === "color") bgValue = incoming.background_value && /^#[0-9a-fA-F]{3,8}$/.test(incoming.background_value) ? incoming.background_value : existing.background_value || "#0b0f19";
-				else if (incoming.background_value) bgValue = sanitizeSafeUrl(incoming.background_value) || bgValue;
-				const glassIntensity = [
-					"subtle",
-					"medium",
-					"heavy",
-					"ultra"
-				].includes(incoming.glass_intensity) ? incoming.glass_intensity : existing.glass_intensity || "medium";
-				let socialLinks = existing.social_links || [];
-				if (Array.isArray(incoming.social_links)) socialLinks = incoming.social_links.filter((s) => s && typeof s.platform === "string" && typeof s.url === "string" && s.url.trim().length > 0).slice(0, 25).map((s) => ({
-					id: String(s.id || Math.random().toString(36).substring(2, 9)),
-					platform: String(s.platform).slice(0, 30),
-					title: s.title ? String(s.title).slice(0, 50) : void 0,
-					icon_url: s.icon_url ? sanitizeSafeUrl(s.icon_url) || void 0 : void 0,
-					url: sanitizeSafeUrl(s.url),
-					active: s.active !== false,
-					remove_bg: s.remove_bg === true,
-					fit_mode: s.fit_mode === "contain" ? "contain" : "cover"
-				}));
 				const updated = {
 					...existing,
-					display_name: incoming.display_name !== void 0 ? String(incoming.display_name).slice(0, 100) : existing.display_name,
+					display_name: incoming.display_name ? String(incoming.display_name).slice(0, 100) : existing.display_name,
 					bio: incoming.bio !== void 0 ? String(incoming.bio || "").slice(0, 500) : existing.bio,
-					avatar_url: incoming.avatar_url !== void 0 ? sanitizeSafeUrl(incoming.avatar_url) || null : existing.avatar_url,
-					background_type: bgType,
-					background_value: bgValue,
-					card_opacity: typeof incoming.card_opacity === "number" ? Math.min(1, Math.max(0, incoming.card_opacity)) : existing.card_opacity,
-					card_radius: typeof incoming.card_radius === "number" ? Math.min(60, Math.max(0, incoming.card_radius)) : existing.card_radius,
-					card_blur: typeof incoming.card_blur === "number" ? Math.min(60, Math.max(0, incoming.card_blur)) : existing.card_blur,
-					glass_intensity: glassIntensity,
-					social_links: socialLinks,
-					accent_color: incoming.accent_color && /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color) ? incoming.accent_color : existing.accent_color,
-					music_url: incoming.music_url !== void 0 ? sanitizeSafeUrl(incoming.music_url) || null : existing.music_url,
-					music_enabled: Boolean(incoming.music_enabled),
-					enter_text: incoming.enter_text ? String(incoming.enter_text).slice(0, 50) : existing.enter_text || "Click to Enter",
-					is_premium: isAdmin && typeof incoming.is_premium === "boolean" ? incoming.is_premium : existing.is_premium,
-					is_banned: isAdmin && typeof incoming.is_banned === "boolean" ? incoming.is_banned : existing.is_banned,
-					is_flagged: isAdmin && typeof incoming.is_flagged === "boolean" ? incoming.is_flagged : existing.is_flagged,
-					views: existing.views || 0,
-					username: safeUsername,
-					updated_at: nowIso
-				};
-				try {
-					await setDoc(doc(db, "profiles", incoming.id), updated);
-				} catch (err) {
-					return {
-						success: false,
-						error: err instanceof Error ? err.message : "Failed to update profile"
-					};
-				}
-			} else {
-				const initial = {
-					id: incoming.id,
-					username: incoming.username ? incoming.username.toLowerCase().trim() : null,
-					display_name: incoming.display_name ? String(incoming.display_name).slice(0, 100) : "User",
-					bio: incoming.bio ? String(incoming.bio).slice(0, 500) : "",
 					avatar_url: sanitizeSafeUrl(incoming.avatar_url) || null,
 					background_type: [
 						"color",
 						"image",
 						"video"
-					].includes(incoming.background_type) ? incoming.background_type : "color",
-					background_value: incoming.background_value || "#0b0f19",
-					card_opacity: typeof incoming.card_opacity === "number" ? incoming.card_opacity : .65,
-					card_radius: typeof incoming.card_radius === "number" ? incoming.card_radius : 24,
-					card_blur: typeof incoming.card_blur === "number" ? incoming.card_blur : 20,
-					glass_intensity: typeof incoming.glass_intensity === "string" && [
-						"subtle",
-						"medium",
-						"heavy",
-						"ultra"
-					].includes(incoming.glass_intensity) ? incoming.glass_intensity : "medium",
-					social_links: Array.isArray(incoming.social_links) ? incoming.social_links.slice(0, 25) : [],
-					accent_color: incoming.accent_color || "#3b82f6",
+					].includes(incoming.background_type) ? incoming.background_type : existing.background_type,
+					background_value: sanitizeSafeUrl(incoming.background_value) || existing.background_value,
+					card_opacity: typeof incoming.card_opacity === "number" ? Math.min(1, Math.max(0, incoming.card_opacity)) : existing.card_opacity,
+					card_radius: typeof incoming.card_radius === "number" ? Math.min(60, Math.max(0, incoming.card_radius)) : existing.card_radius,
+					card_blur: typeof incoming.card_blur === "number" ? Math.min(60, Math.max(0, incoming.card_blur)) : existing.card_blur,
+					accent_color: incoming.accent_color && /^#[0-9a-fA-F]{3,8}$/.test(incoming.accent_color) ? incoming.accent_color : existing.accent_color,
 					music_url: sanitizeSafeUrl(incoming.music_url) || null,
 					music_enabled: Boolean(incoming.music_enabled),
-					enter_text: incoming.enter_text || "Click to Enter",
-					is_premium: false,
-					is_banned: false,
-					is_flagged: false,
-					views: 0,
-					created_at: nowIso,
-					updated_at: nowIso
+					enter_text: incoming.enter_text ? String(incoming.enter_text).slice(0, 50) : existing.enter_text,
+					is_premium: isAdmin && typeof incoming.is_premium === "boolean" ? incoming.is_premium : existing.is_premium,
+					is_banned: isAdmin && typeof incoming.is_banned === "boolean" ? incoming.is_banned : existing.is_banned,
+					is_flagged: isAdmin && typeof incoming.is_flagged === "boolean" ? incoming.is_flagged : existing.is_flagged,
+					views: existing.views,
+					username: safeUsername,
+					updated_at: (/* @__PURE__ */ new Date()).toISOString()
 				};
-				try {
-					await setDoc(doc(db, "profiles", incoming.id), initial);
-				} catch (err) {
-					return {
-						success: false,
-						error: err instanceof Error ? err.message : "Failed to create profile"
-					};
-				}
+				await setDoc(doc(db, "profiles", incoming.id), updated);
 			}
 		}
-		if (payload.links && Array.isArray(payload.links)) try {
+		if (payload.links && Array.isArray(payload.links)) {
 			const allowedIncoming = payload.links.filter((l) => isAdmin ? true : l.user_id === userId).map((l) => ({
 				...l,
 				title: String(l.title || "Link").slice(0, 100),
@@ -475,11 +398,6 @@ var serverStorage = {
 				if (!l.id) l.id = "lnk-" + Math.random().toString(36).substring(2, 10);
 				await setDoc(doc(db, "links", l.id), l);
 			}
-		} catch (err) {
-			return {
-				success: false,
-				error: err instanceof Error ? err.message : "Failed to update links"
-			};
 		}
 		return { success: true };
 	},
@@ -640,7 +558,7 @@ function checkRateLimit(key, limit, windowMs) {
 }
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./server-Eg-76ISV.mjs").then((n) => n.t).then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./server-BNn8p_Wj.mjs").then((n) => n.t).then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 function jsonResponse(data, status = 200, extraHeaders = {}) {
@@ -719,158 +637,30 @@ function isH3SwallowedErrorBody(body) {
 		return false;
 	}
 }
-globalThis.__HALO_SERVER_STORE__ = { getProfile: (username) => serverStorage.getProfile(username) };
 var server_default = { async fetch(request, env, ctx) {
 	try {
 		const url = new URL(request.url);
 		if (url.pathname.startsWith("/api/")) {
 			const clientIp = getClientIp(request);
 			const method = request.method.toUpperCase();
-			if (url.pathname.startsWith("/api/media/") && method === "GET") {
-				const rawName = url.pathname.slice(11);
-				const filename = path.basename(decodeURIComponent(rawName));
-				const filePath = path.join(processModule.cwd(), "public", "uploads", filename);
-				if (!fs.existsSync(filePath)) return new Response("Media not found", { status: 404 });
-				const fileSize = fs.statSync(filePath).size;
-				const contentType = {
-					".mp4": "video/mp4",
-					".webm": "video/webm",
-					".ogv": "video/ogg",
-					".mov": "video/quicktime",
-					".png": "image/png",
-					".jpg": "image/jpeg",
-					".jpeg": "image/jpeg",
-					".gif": "image/gif",
-					".svg": "image/svg+xml",
-					".webp": "image/webp",
-					".ico": "image/x-icon",
-					".mp3": "audio/mpeg",
-					".wav": "audio/wav"
-				}[path.extname(filename).toLowerCase()] || "application/octet-stream";
-				const range = request.headers.get("range");
-				if (range) {
-					const parts = range.replace(/bytes=/, "").split("-");
-					const start = parseInt(parts[0], 10);
-					const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-					if (start >= fileSize || end >= fileSize || start > end) return new Response(null, {
-						status: 416,
-						headers: { "Content-Range": `bytes */${fileSize}` }
-					});
-					const chunksize = end - start + 1;
-					const nodeStream = fs.createReadStream(filePath, {
-						start,
-						end
-					});
-					const webStream = Readable.toWeb(nodeStream);
-					return new Response(webStream, {
-						status: 206,
-						headers: {
-							"Content-Range": `bytes ${start}-${end}/${fileSize}`,
-							"Accept-Ranges": "bytes",
-							"Content-Length": String(chunksize),
-							"Content-Type": contentType,
-							"Cache-Control": "public, max-age=31536000, immutable"
-						}
-					});
-				}
-				const nodeStream = fs.createReadStream(filePath);
-				const webStream = Readable.toWeb(nodeStream);
-				return new Response(webStream, {
-					status: 200,
-					headers: {
-						"Content-Length": String(fileSize),
-						"Content-Type": contentType,
-						"Accept-Ranges": "bytes",
-						"Cache-Control": "public, max-age=31536000, immutable"
-					}
-				});
-			}
-			const isUpload = url.pathname === "/api/upload";
-			const maxLimit = isUpload ? 104857600 : 4718592;
 			const contentLength = request.headers.get("content-length");
-			if (contentLength && parseInt(contentLength, 10) > maxLimit) return jsonResponse({ error: isUpload ? "File exceeds the 100MB upload limit." : "Payload too large. Please use a smaller file or compressed image." }, 413);
+			if (contentLength && parseInt(contentLength, 10) > 2097152) return jsonResponse({ error: "Payload too large" }, 413);
 			if ([
 				"POST",
 				"PUT",
 				"DELETE",
 				"PATCH"
 			].includes(method)) {
-				if (request.headers.get("x-requested-with") !== "halo-app") return jsonResponse({ error: "Invalid or missing CSRF header (X-Requested-With)" }, 200);
+				if (request.headers.get("x-requested-with") !== "halo-app") return jsonResponse({ error: "Invalid or missing CSRF header (X-Requested-With)" }, 403);
 			}
 			let rateLimit = 120;
 			const windowMs = 6e4;
 			if (url.pathname.startsWith("/api/auth/")) rateLimit = 20;
-			else if (url.pathname === "/api/upload") rateLimit = 1200;
 			else if (url.pathname === "/api/change-password" || url.pathname.startsWith("/api/admin/")) rateLimit = 30;
 			else if (url.pathname === "/api/sync" || url.pathname === "/api/claim") rateLimit = 30;
 			else if (url.pathname === "/api/view" || url.pathname === "/api/click") rateLimit = 60;
 			const rateCheck = checkRateLimit(`${clientIp}:${url.pathname}`, rateLimit, windowMs);
 			if (!rateCheck.allowed) return jsonResponse({ error: "Too many requests. Please try again later." }, 429, { "Retry-After": String(rateCheck.retryAfter) });
-			if (url.pathname === "/api/upload" && method === "POST") try {
-				const formData = await request.formData();
-				const chunkIndex = formData.get("chunkIndex");
-				const totalChunks = formData.get("totalChunks");
-				const uploadId = formData.get("uploadId");
-				const file = formData.get("file");
-				if (!file) return jsonResponse({ error: "No file provided" }, 400);
-				if (file.size > 104857600) return jsonResponse({ error: "File/Chunk exceeds 100MB limit" }, 413);
-				if (chunkIndex !== null && totalChunks !== null && uploadId) {
-					const cIdx = parseInt(chunkIndex, 10);
-					const tChunks = parseInt(totalChunks, 10);
-					const uId = String(uploadId).replace(/[^a-zA-Z0-9-]/g, "");
-					const tmpDir = path.join(processModule.cwd(), "public", "uploads", "tmp");
-					if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-					const chunkPath = path.join(tmpDir, `${uId}-${cIdx}`);
-					const arrayBuf = await file.arrayBuffer();
-					fs.writeFileSync(chunkPath, Buffer.from(arrayBuf));
-					if (cIdx === tChunks - 1) {
-						const rawExt = path.extname(file.name || "").toLowerCase();
-						const ext = /^\.[a-zA-Z0-9]+$/.test(rawExt) ? rawExt : file.type.startsWith("video/") ? ".mp4" : ".bin";
-						const finalFilename = `${Date.now()}-${uId}${ext}`;
-						const finalDir = path.join(processModule.cwd(), "public", "uploads");
-						if (!fs.existsSync(finalDir)) fs.mkdirSync(finalDir, { recursive: true });
-						const finalPath = path.join(finalDir, finalFilename);
-						const writeStream = fs.createWriteStream(finalPath);
-						for (let i = 0; i < tChunks; i++) {
-							const partPath = path.join(tmpDir, `${uId}-${i}`);
-							if (fs.existsSync(partPath)) {
-								const data = fs.readFileSync(partPath);
-								writeStream.write(data);
-								fs.unlinkSync(partPath);
-							}
-						}
-						writeStream.end();
-						return jsonResponse({
-							success: true,
-							url: `/api/media/${finalFilename}`,
-							name: file.name
-						});
-					}
-					return jsonResponse({
-						success: true,
-						message: `Chunk ${cIdx} received`
-					});
-				}
-				const rawExt = path.extname(file.name || "").toLowerCase();
-				const defaultExt = file.type.startsWith("video/") ? ".mp4" : file.type.startsWith("image/svg") ? ".svg" : ".png";
-				const ext = /^\.[a-zA-Z0-9]+$/.test(rawExt) ? rawExt : defaultExt;
-				const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
-				const uploadDir = path.join(processModule.cwd(), "public", "uploads");
-				if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-				const filePath = path.join(uploadDir, filename);
-				const arrayBuf = await file.arrayBuffer();
-				fs.writeFileSync(filePath, Buffer.from(arrayBuf));
-				return jsonResponse({
-					success: true,
-					url: `/api/media/${filename}`,
-					name: file.name,
-					size: file.size,
-					type: file.type
-				});
-			} catch (err) {
-				console.error("Upload handler error:", err);
-				return jsonResponse({ error: "Failed to process media upload" }, 500);
-			}
 			if (url.pathname === "/api/auth/signup" && method === "POST") try {
 				const body = await request.json();
 				const email = String(body.email || "").trim().toLowerCase();
@@ -1133,11 +923,7 @@ var server_default = { async fetch(request, env, ctx) {
 				const username = decodeURIComponent(url.pathname.slice(13));
 				const res = await serverStorage.getProfile(username);
 				if (!res) return jsonResponse({ error: "Profile not found" }, 404);
-				return jsonResponse(res, 200, {
-					"Cache-Control": "no-cache, no-store, must-revalidate",
-					Pragma: "no-cache",
-					Expires: "0"
-				});
+				return jsonResponse(res);
 			}
 			if (url.pathname === "/api/stats") return jsonResponse(await serverStorage.getStats());
 		}

@@ -1394,43 +1394,47 @@ export async function uploadMedia(
     }
   }
 
+  // First attempt robust server-side media upload (writes to /public/uploads and streams via /api/media)
   try {
-    const { storage } = await import("./firebase");
-    if (!storage) throw new Error("Firebase storage not initialized");
-    const { ref, uploadBytesResumable, getDownloadURL } =
-      await import("firebase/storage");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder);
+    formData.append("userId", userId);
 
-    const ext =
-      file.name.split(".").pop()?.toLowerCase() ||
-      (file.type.startsWith("video/") ? "mp4" : "bin");
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
-    const storageRef = ref(storage, `${userId}/${folder}/${filename}`);
-
-    // Use uploadBytesResumable to handle large files seamlessly
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        () => {}, // progress can be added here if needed
-        (error) => {
-          reject(new Error(`Failed to upload to storage: ${error.message}`));
-        },
-        async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
-          } catch (err) {
-            reject(new Error("Failed to retrieve download URL after upload"));
-          }
-        },
-      );
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        "x-requested-with": "halo-app",
+      },
+      body: formData,
     });
-  } catch (err) {
-    if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
-      throw err instanceof Error ? err : new Error("Failed to upload media");
+
+    if (res.ok) {
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        return data.url;
+      }
+    } else {
+      const errData = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (file.type.startsWith("video/")) {
+        throw new Error(
+          errData.error ||
+            `Video upload failed with status ${res.status}. Please try again.`,
+        );
+      }
     }
-    console.warn("Direct storage upload failed, falling back to base64:", err);
+  } catch (serverErr) {
+    if (file.type.startsWith("video/")) {
+      throw serverErr instanceof Error
+        ? serverErr
+        : new Error("Failed to upload video to media server.");
+    }
+    console.warn(
+      "Direct server upload attempt failed, falling back:",
+      serverErr,
+    );
   }
 
   // Optimize and downscale images via Canvas if server upload wasn't used
