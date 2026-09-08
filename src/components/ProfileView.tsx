@@ -373,6 +373,10 @@ export function ProfileView({
                     const Icon = cfg.icon;
                     const safeSocUrl = ensureProtocol(soc.url);
                     const label = soc.title || cfg.label;
+                    const isCustom = !!soc.icon_url || soc.platform === "custom";
+                    // If remove_bg is true (or defaulted for custom icons), no button background/border is rendered
+                    const noBg = soc.remove_bg !== undefined ? soc.remove_bg : isCustom;
+                    const fitMode = soc.fit_mode || "cover";
 
                     return (
                       <a
@@ -386,12 +390,20 @@ export function ProfileView({
                             toast.info(`Preview: ${label} link`);
                           }
                         }}
-                        className="group relative flex h-9 w-9 items-center justify-center rounded-full border border-glass-border transition-all hover:scale-110 active:scale-95 shadow-sm overflow-hidden"
-                        style={{
-                          backgroundColor:
-                            "color-mix(in oklab, white 68%, transparent)",
-                          backdropFilter: `blur(${Math.max(6, profile.card_blur / 2)}px)`,
-                        }}
+                        className={`group relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition-all duration-200 hover:scale-115 active:scale-95 overflow-hidden ${
+                          noBg
+                            ? "bg-transparent border-0 shadow-none"
+                            : "border border-glass-border shadow-sm"
+                        }`}
+                        style={
+                          noBg
+                            ? { backgroundColor: "transparent", backdropFilter: "none" }
+                            : {
+                                backgroundColor:
+                                  "color-mix(in oklab, white 68%, transparent)",
+                                backdropFilter: `blur(${Math.max(6, profile.card_blur / 2)}px)`,
+                              }
+                        }
                         title={label}
                         aria-label={label}
                       >
@@ -399,7 +411,11 @@ export function ProfileView({
                           <img
                             src={soc.icon_url}
                             alt={label}
-                            className="h-4 w-4 object-contain rounded-sm transition-transform group-hover:scale-110"
+                            className={`h-full w-full transition-transform duration-200 group-hover:scale-110 ${
+                              fitMode === "contain"
+                                ? "object-contain p-0.5"
+                                : "object-cover rounded-full"
+                            }`}
                           />
                         ) : (
                           <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />

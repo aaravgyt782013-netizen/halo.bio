@@ -28,6 +28,8 @@ export type SocialLink = {
   title?: string;
   icon_url?: string;
   active?: boolean;
+  remove_bg?: boolean;
+  fit_mode?: "cover" | "contain";
 };
 
 export type Profile = {
@@ -351,6 +353,8 @@ export const serverStorage = {
                   : undefined,
                 url: sanitizeSafeUrl(s.url),
                 active: s.active !== false,
+                remove_bg: s.remove_bg === true,
+                fit_mode: s.fit_mode === "contain" ? "contain" : "cover",
               }));
           }
 

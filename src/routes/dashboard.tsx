@@ -281,16 +281,28 @@ function Dashboard() {
       if (profile.background_type === "video") {
         if (!finalBgValue || finalBgValue.includes("mixkit.co")) {
           finalBgValue = CURATED_VIDEOS[0].url;
-        } else if (
-          finalBgValue.startsWith("data:video/") &&
-          finalBgValue.length > 950 * 1024
-        ) {
-          setSaving(false);
-          toast.error(
-            "Video file could not be saved to server storage and exceeds database limits. Please re-upload or select a video link.",
-            { duration: 6000 },
-          );
-          return;
+        } else if (finalBgValue.startsWith("data:video/")) {
+          try {
+            toast.info("Transferring video to media streaming server...");
+            const res = await fetch(finalBgValue);
+            const blob = await res.blob();
+            const file = new File(
+              [blob],
+              `bg-video-${Date.now()}.${blob.type.includes("webm") ? "webm" : "mp4"}`,
+              { type: blob.type || "video/mp4" },
+            );
+            const uploadedUrl = await uploadMedia(user.id, file, "backgrounds");
+            finalBgValue = uploadedUrl;
+          } catch (vidErr) {
+            console.error("Auto-migrating video to media server failed:", vidErr);
+            if (finalBgValue.length > 800 * 1024) {
+              toast.error(
+                "Legacy video file exceeds database size limits. It has been reset. Please upload your video again using the new Upload button.",
+                { duration: 6000 },
+              );
+              finalBgValue = CURATED_VIDEOS[0].url;
+            }
+          }
         }
       }
 

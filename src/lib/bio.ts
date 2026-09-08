@@ -23,6 +23,8 @@ export type SocialLink = {
   title?: string;
   icon_url?: string;
   active?: boolean;
+  remove_bg?: boolean; // When true, button background is transparent (no box/circle)
+  fit_mode?: "cover" | "contain"; // "cover" fills whole button, "contain" scales inside
 };
 
 export type Profile = {
@@ -1412,8 +1414,23 @@ export async function uploadMedia(
       if (data.url) {
         return data.url;
       }
+    } else {
+      const errData = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (file.type.startsWith("video/")) {
+        throw new Error(
+          errData.error ||
+            `Video upload failed with status ${res.status}. Please try again.`,
+        );
+      }
     }
   } catch (serverErr) {
+    if (file.type.startsWith("video/")) {
+      throw serverErr instanceof Error
+        ? serverErr
+        : new Error("Failed to upload video to media server.");
+    }
     console.warn(
       "Direct server upload attempt failed, falling back:",
       serverErr,

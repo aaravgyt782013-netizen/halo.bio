@@ -46,6 +46,8 @@ export function SocialLinksEditor({
   const [customTitle, setCustomTitle] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [customIconUrl, setCustomIconUrl] = useState("");
+  const [customRemoveBg, setCustomRemoveBg] = useState<boolean>(true);
+  const [customFitMode, setCustomFitMode] = useState<"cover" | "contain">("cover");
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -54,6 +56,8 @@ export function SocialLinksEditor({
   const [editUrlValue, setEditUrlValue] = useState("");
   const [editTitleValue, setEditTitleValue] = useState("");
   const [editIconUrlValue, setEditIconUrlValue] = useState("");
+  const [editRemoveBgValue, setEditRemoveBgValue] = useState<boolean>(true);
+  const [editFitModeValue, setEditFitModeValue] = useState<"cover" | "contain">("cover");
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const currentPlatformConfig = getPlatformConfig(selectedPlatform);
@@ -99,6 +103,8 @@ export function SocialLinksEditor({
       icon_url: customIconUrl.trim() || undefined,
       url: formatted,
       active: true,
+      remove_bg: customRemoveBg,
+      fit_mode: customFitMode,
     };
 
     onChange([...socialLinks, newLink]);
@@ -188,6 +194,8 @@ export function SocialLinksEditor({
     setEditUrlValue(link.url);
     setEditTitleValue(link.title || "");
     setEditIconUrlValue(link.icon_url || "");
+    setEditRemoveBgValue(link.remove_bg !== undefined ? link.remove_bg : true);
+    setEditFitModeValue(link.fit_mode || "cover");
   };
 
   const handleSaveInlineEdit = (id: string) => {
@@ -205,6 +213,8 @@ export function SocialLinksEditor({
               url: formatted,
               title: editTitleValue.trim() || undefined,
               icon_url: editIconUrlValue.trim() || undefined,
+              remove_bg: editRemoveBgValue,
+              fit_mode: editFitModeValue,
             }
           : l,
       ),
@@ -451,6 +461,35 @@ export function SocialLinksEditor({
                   className="field w-full text-xs font-mono"
                 />
               </div>
+
+              {customIconUrl && (
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={customRemoveBg}
+                      onChange={(e) => setCustomRemoveBg(e.target.checked)}
+                      className="rounded border-border bg-background text-primary focus:ring-primary h-3.5 w-3.5"
+                    />
+                    <span className="text-[11px] font-medium text-foreground group-hover:text-primary transition-colors">
+                      Transparent Button (No BG)
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={customFitMode === "cover"}
+                      onChange={(e) =>
+                        setCustomFitMode(e.target.checked ? "cover" : "contain")
+                      }
+                      className="rounded border-border bg-background text-primary focus:ring-primary h-3.5 w-3.5"
+                    />
+                    <span className="text-[11px] font-medium text-foreground group-hover:text-primary transition-colors">
+                      Fill Full Button (Cover)
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
@@ -628,6 +667,39 @@ export function SocialLinksEditor({
                                 className="hidden"
                                 onChange={(e) => handleIconFileUpload(e, true)}
                               />
+                            </div>
+                          )}
+
+                          {isCustom && (
+                            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                              <label className="flex items-center gap-1.5 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={editRemoveBgValue}
+                                  onChange={(e) =>
+                                    setEditRemoveBgValue(e.target.checked)
+                                  }
+                                  className="rounded border-border bg-background text-primary focus:ring-primary h-3 w-3"
+                                />
+                                <span className="text-[10px] font-medium text-foreground group-hover:text-primary transition-colors">
+                                  Transparent Button
+                                </span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={editFitModeValue === "cover"}
+                                  onChange={(e) =>
+                                    setEditFitModeValue(
+                                      e.target.checked ? "cover" : "contain",
+                                    )
+                                  }
+                                  className="rounded border-border bg-background text-primary focus:ring-primary h-3 w-3"
+                                />
+                                <span className="text-[10px] font-medium text-foreground group-hover:text-primary transition-colors">
+                                  Fill Full Button
+                                </span>
+                              </label>
                             </div>
                           )}
                         </div>
