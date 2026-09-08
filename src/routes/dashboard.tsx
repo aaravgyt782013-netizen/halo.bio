@@ -263,7 +263,9 @@ function Dashboard() {
       try {
         localStorage.setItem("halo_live_profile", JSON.stringify(updated));
         localStorage.setItem("halo_sync_tick", String(Date.now()));
-      } catch {}
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
       return updated;
     });
   };
@@ -399,7 +401,9 @@ function Dashboard() {
       try {
         localStorage.setItem("halo_live_links", JSON.stringify(next));
         localStorage.setItem("halo_sync_tick", String(Date.now()));
-      } catch {}
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
       return next;
     });
     notifyStoreUpdated();
@@ -412,7 +416,9 @@ function Dashboard() {
       try {
         localStorage.setItem("halo_live_links", JSON.stringify(next));
         localStorage.setItem("halo_sync_tick", String(Date.now()));
-      } catch {}
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
       return next;
     });
     await db.from("links").update(changes).eq("id", id);
@@ -425,7 +431,9 @@ function Dashboard() {
       try {
         localStorage.setItem("halo_live_links", JSON.stringify(next));
         localStorage.setItem("halo_sync_tick", String(Date.now()));
-      } catch {}
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
       return next;
     });
     await db.from("links").delete().eq("id", id);
@@ -447,7 +455,9 @@ function Dashboard() {
     try {
       localStorage.setItem("halo_live_links", JSON.stringify(ordered));
       localStorage.setItem("halo_sync_tick", String(Date.now()));
-    } catch {}
+    } catch (err) {
+      console.warn("Local storage error:", err);
+    }
     await Promise.all(
       ordered.map((l, i) =>
         db.from("links").update({ position: i }).eq("id", l.id),
@@ -1051,10 +1061,15 @@ function Dashboard() {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file)
+                            if (file) {
+                              if (file.size > 15 * 1024 * 1024) {
+                                toast.error("File exceeds 15MB limit");
+                                return;
+                              }
                               void upload(file, "avatar", (url) =>
                                 patch({ avatar_url: url }),
                               );
+                            }
                           }}
                         />
                       </label>
@@ -1177,10 +1192,22 @@ function Dashboard() {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file)
+                            if (file) {
+                              if (
+                                profile.background_type === "video" &&
+                                file.size > 1 * 1024 * 1024
+                              ) {
+                                toast.error("Video exceeds 1MB limit");
+                                return;
+                              }
+                              if (file.size > 15 * 1024 * 1024) {
+                                toast.error("File exceeds 15MB limit");
+                                return;
+                              }
                               void upload(file, "background", (url) =>
                                 patch({ background_value: url }),
                               );
+                            }
                           }}
                         />
                       </label>
@@ -1188,9 +1215,9 @@ function Dashboard() {
 
                     {profile.background_type === "video" && (
                       <p className="text-[11px] text-muted-foreground">
-                        Supports uploaded videos up to 1MB with
-                        high-performance streaming, direct MP4/WebM URLs,
-                        YouTube loops, or curated background video clips.
+                        Supports uploaded videos up to 1MB with high-performance
+                        streaming, direct MP4/WebM URLs, YouTube loops, or
+                        curated background video clips.
                       </p>
                     )}
 

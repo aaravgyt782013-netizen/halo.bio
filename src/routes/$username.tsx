@@ -49,11 +49,18 @@ function PublicProfile() {
 
   // Real-time synchronization: listen for dashboard edits or cross-tab updates
   useEffect(() => {
-    const syncFresh = () => {
+    const applyLocal = (e?: StorageEvent | Event) => {
+      if (
+        e instanceof StorageEvent &&
+        e.key &&
+        !e.key.startsWith("halo_live_")
+      ) {
+        return;
+      }
       try {
         const localProfile = localStorage.getItem("halo_live_profile");
         const localLinks = localStorage.getItem("halo_live_links");
-        
+
         if (localProfile) {
           const parsed = JSON.parse(localProfile);
           if (parsed.username === profile.username) {
@@ -63,27 +70,41 @@ function PublicProfile() {
         if (localLinks) {
           setLinks(JSON.parse(localLinks));
         }
-      } catch {}
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
+    };
 
+    const fetchDB = () => {
       void fetchProfileByUsername(profile.username).then((fresh) => {
         if (fresh && fresh.profile) {
+          // If local storage tick is very recent, skip DB overwrite to prevent flickering
+          try {
+            const tick = localStorage.getItem("halo_sync_tick");
+            if (tick && Date.now() - parseInt(tick) < 3000) {
+              return; // Local changes are too fresh, DB might be stale
+            }
+          } catch (err) {
+            console.warn("Local storage error:", err);
+          }
+
           setProfile(fresh.profile);
           setLinks(fresh.links);
         }
       });
     };
 
-    window.addEventListener("halo-store-updated", syncFresh);
-    window.addEventListener("storage", syncFresh);
-    window.addEventListener("focus", syncFresh);
+    window.addEventListener("halo-store-updated", applyLocal);
+    window.addEventListener("storage", applyLocal);
+    window.addEventListener("focus", fetchDB);
 
     // Run once on mount to catch any unsaved changes if they exist in localStorage
-    syncFresh();
+    applyLocal();
 
     return () => {
-      window.removeEventListener("halo-store-updated", syncFresh);
-      window.removeEventListener("storage", syncFresh);
-      window.removeEventListener("focus", syncFresh);
+      window.removeEventListener("halo-store-updated", applyLocal);
+      window.removeEventListener("storage", applyLocal);
+      window.removeEventListener("focus", fetchDB);
     };
   }, [profile.username]);
 

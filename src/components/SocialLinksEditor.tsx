@@ -122,6 +122,11 @@ export function SocialLinksEditor({
       return;
     }
 
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File exceeds 15MB limit");
+      return;
+    }
+
     setIsUploadingIcon(true);
     try {
       // Optimistic instant preview via local blob

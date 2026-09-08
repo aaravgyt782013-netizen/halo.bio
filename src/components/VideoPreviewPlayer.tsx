@@ -201,9 +201,7 @@ export function VideoPreviewPlayer({
           {hasError && (
             <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 text-center z-20">
               <AlertCircle className="h-8 w-8 text-destructive mb-2" />
-              <p className="text-xs font-semibold text-white">
-                GIF Load Error
-              </p>
+              <p className="text-xs font-semibold text-white">GIF Load Error</p>
             </div>
           )}
           {isLoading && !hasError && (
