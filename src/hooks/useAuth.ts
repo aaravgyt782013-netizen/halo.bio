@@ -1,34 +1,23 @@
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { firebaseAuth, db } from "@/lib/firebase";
-import type { Profile } from "@/lib/bio";
+import { auth, db, type Profile, type AuthSession } from "@/lib/bio";
 
 export function useAuth() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
-      setUser(firebaseUser);
+    const { data: sub } = auth.onAuthStateChange((_e, s) => {
+      setSession(s);
       setLoading(false);
     });
-
-    return () => unsubscribe();
+    auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  // For compatibility with old code that expected session.user.id
-  const compatSession = user
-    ? { user: { id: user.uid, email: user.email, role: "user" } }
-    : null;
-  const compatUser = compatSession ? compatSession.user : null;
-
-  return {
-    session: compatSession,
-    user: compatUser,
-    firebaseUser: user,
-    loading,
-  };
+  return { session, user: session?.user ?? null, loading };
 }
 
 export function useMyProfile(userId: string | undefined) {
@@ -41,25 +30,38 @@ export function useMyProfile(userId: string | undefined) {
       setLoading(false);
       return;
     }
-
+    let cancelled = false;
     setLoading(true);
-    const unsubscribe = onSnapshot(
-      doc(db, "profiles", userId),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as Profile);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching profile", error);
-        setLoading(false);
-      },
-    );
 
-    return () => unsubscribe();
+    const loadProfile = () => {
+      db.from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle()
+        .then(({ data }: { data: Profile | null }) => {
+          if (!cancelled) {
+            setProfile(data ?? null);
+            setLoading(false);
+          }
+        });
+    };
+
+    loadProfile();
+
+    const handleUpdate = () => {
+      loadProfile();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("halo-store-updated", handleUpdate);
+    }
+
+    return () => {
+      cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("halo-store-updated", handleUpdate);
+      }
+    };
   }, [userId]);
 
   return { profile, setProfile, loading };
@@ -73,23 +75,18 @@ export function useIsAdmin(userId: string | undefined) {
       setIsAdmin(null);
       return;
     }
-
-    const unsubscribe = onSnapshot(
-      doc(db, "user_roles", userId),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setIsAdmin(docSnap.data().role === "admin");
-        } else {
-          setIsAdmin(false);
-        }
-      },
-      (error) => {
-        console.error("Error fetching admin status", error);
-        setIsAdmin(false);
-      },
-    );
-
-    return () => unsubscribe();
+    let cancelled = false;
+    db.from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle()
+      .then(({ data }: { data: { role: string } | null }) => {
+        if (!cancelled) setIsAdmin(!!data);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   return isAdmin;

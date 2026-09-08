@@ -46,8 +46,6 @@ export function SocialLinksEditor({
   const [customTitle, setCustomTitle] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [customIconUrl, setCustomIconUrl] = useState("");
-  const [customFullCover, setCustomFullCover] = useState(false);
-  const [customRemoveBg, setCustomRemoveBg] = useState(false);
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -57,8 +55,6 @@ export function SocialLinksEditor({
   const [editUrlValue, setEditUrlValue] = useState("");
   const [editTitleValue, setEditTitleValue] = useState("");
   const [editIconUrlValue, setEditIconUrlValue] = useState("");
-  const [editFullCover, setEditFullCover] = useState(false);
-  const [editRemoveBg, setEditRemoveBg] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const currentPlatformConfig = getPlatformConfig(selectedPlatform);
@@ -102,8 +98,6 @@ export function SocialLinksEditor({
       platform: "custom",
       title: customTitle.trim(),
       icon_url: customIconUrl.trim() || undefined,
-      full_cover: customFullCover,
-      remove_bg: customRemoveBg,
       url: formatted,
       active: true,
     };
@@ -112,8 +106,6 @@ export function SocialLinksEditor({
     setCustomTitle("");
     setCustomUrl("");
     setCustomIconUrl("");
-    setCustomFullCover(false);
-    setCustomRemoveBg(false);
     toast.success(`Added custom ${newLink.title} icon link`);
   };
 
@@ -201,8 +193,6 @@ export function SocialLinksEditor({
     setEditUrlValue(link.url);
     setEditTitleValue(link.title || "");
     setEditIconUrlValue(link.icon_url || "");
-    setEditFullCover(!!link.full_cover);
-    setEditRemoveBg(!!link.remove_bg);
   };
 
   const handleSaveInlineEdit = (id: string) => {
@@ -220,8 +210,6 @@ export function SocialLinksEditor({
               url: formatted,
               title: editTitleValue.trim() || undefined,
               icon_url: editIconUrlValue.trim() || undefined,
-              full_cover: editFullCover,
-              remove_bg: editRemoveBg,
             }
           : l,
       ),
@@ -456,27 +444,6 @@ export function SocialLinksEditor({
                 />
               </div>
 
-              <div className="flex gap-4 pt-1">
-                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={customFullCover}
-                    onChange={(e) => setCustomFullCover(e.target.checked)}
-                    className="rounded border-border bg-background"
-                  />
-                  Full Button Cover
-                </label>
-                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={customRemoveBg}
-                    onChange={(e) => setCustomRemoveBg(e.target.checked)}
-                    className="rounded border-border bg-background"
-                  />
-                  Remove Background
-                </label>
-              </div>
-
               <div>
                 <label className="text-[11px] text-muted-foreground block mb-1">
                   Or paste direct Image / SVG Icon URL (optional)
@@ -587,7 +554,7 @@ export function SocialLinksEditor({
                         <img
                           src={link.icon_url}
                           alt={displayName}
-                          className={`h-full w-full object-cover ${link.full_cover ? "rounded-full scale-110" : "p-[6px]"}`}
+                          className="h-full w-full object-cover"
                         />
                       ) : (
                         <Icon className="h-4 w-4" />

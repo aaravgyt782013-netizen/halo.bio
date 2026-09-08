@@ -1,25 +1,39 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, KeyRound, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { firebaseAuth } from "../lib/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { useAuth } from "../hooks/useAuth";
+import {
+  Mail,
+  Lock,
+  User,
+  ArrowLeft,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+} from "lucide-react";
+import { auth } from "@/lib/bio";
+import { useAuth } from "@/hooks/useAuth";
+
+type Search = { mode?: "signup" | "login" | undefined; u?: string | undefined };
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => {
-    return {
-      mode: (search.mode as string) || "login",
-      u: search.u as string | undefined,
-    };
-  },
-  meta: () => ({
-    title: "Sign in — Halo bio pages",
+  validateSearch: (search: Record<string, unknown>): Search => ({
+    mode: search["mode"] === "signup" ? "signup" : "login",
+    u: typeof search["u"] === "string" ? (search["u"] as string) : undefined,
+  }),
+  head: () => ({
     meta: [
+      { title: "Sign in — Halo bio pages" },
       {
         name: "description",
         content:
           "Log in or create a Halo account to build your media-rich link-in-bio page.",
+      },
+      { property: "og:title", content: "Sign in — Halo bio pages" },
+      {
+        property: "og:description",
+        content:
+          "Create your Halo account with email & password and claim your username.",
       },
     ],
   }),
@@ -27,9 +41,14 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { u } = Route.useSearch();
+  const { mode, u } = Route.useSearch();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const [isSignup, setIsSignup] = useState(mode === "signup");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -40,21 +59,47 @@ function AuthPage() {
     if (u) sessionStorage.setItem("halo:desired-username", u);
   }, [u]);
 
-  const handleGoogleSignIn = async () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      toast.error("Please fill in both email and password.");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+
     setBusy(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(firebaseAuth, provider);
-
-      const desired = sessionStorage.getItem("halo:desired-username");
-      if (desired) {
-        toast.success("Authentication successful!");
-        navigate({ to: "/claim", search: { u: desired } });
+      if (isSignup) {
+        const { data, error } = await auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName.trim() || undefined },
+          },
+        });
+        if (error) throw error;
+        if (data.session) {
+          toast.success("Account created successfully!");
+          const desired = sessionStorage.getItem("halo:desired-username");
+          if (desired) {
+            navigate({ to: "/claim" });
+          } else {
+            navigate({ to: "/claim" });
+          }
+        }
       } else {
-        toast.success("Welcome!");
+        const { error } = await auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        toast.success("Welcome back!");
         navigate({ to: "/dashboard" });
       }
-    } catch (err: unknown) {
+    } catch (err) {
       toast.error(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setBusy(false);
@@ -64,6 +109,7 @@ function AuthPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center px-5 py-12">
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
+
       <div className="glass-panel w-full max-w-md animate-float-in p-8 shadow-lift">
         <button
           type="button"
@@ -73,13 +119,15 @@ function AuthPage() {
           <ArrowLeft className="h-3.5 w-3.5" /> Back to home
         </button>
 
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight">
-              Welcome to Halo
+              {isSignup ? "Create your page" : "Welcome back"}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Sign in with your Google account to continue.
+              {isSignup
+                ? "Sign up with email to claim your custom bio handle."
+                : "Log in with your credentials to manage your links."}
             </p>
           </div>
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -87,45 +135,139 @@ function AuthPage() {
           </div>
         </div>
 
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={busy}
-          className="btn-primary w-full shadow-md flex items-center justify-center gap-2 h-11"
-        >
-          {busy ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              Authenticating…
-            </>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-                <path
-                  d="M12.0003 4.75C13.7703 4.75 15.3553 5.36 16.6053 6.54998L20.0303 3.125C17.9502 1.19 15.2353 0 12.0003 0C7.31028 0 3.25527 2.69 1.28027 6.60998L5.27028 9.70498C6.21525 6.86 8.87028 4.75 12.0003 4.75Z"
-                  fill="#EA4335"
-                />
-                <path
-                  d="M23.49 12.275C23.49 11.49 23.415 10.73 23.3 10H12V14.51H18.47C18.18 15.99 17.34 17.25 16.08 18.1L19.945 21.1C22.2 19.01 23.49 15.92 23.49 12.275Z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M5.26498 14.2949C5.02498 13.5699 4.88501 12.7999 4.88501 11.9999C4.88501 11.1999 5.01998 10.4299 5.26498 9.7049L1.275 6.60986C0.46 8.22986 0 10.0599 0 11.9999C0 13.9399 0.46 15.7699 1.28 17.3899L5.26498 14.2949Z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12.0004 24.0001C15.2404 24.0001 17.9654 22.935 19.9454 21.095L16.0804 18.095C15.0054 18.82 13.6204 19.245 12.0004 19.245C8.8704 19.245 6.21537 17.135 5.26538 14.29L1.27539 17.385C3.25539 21.31 7.3104 24.0001 12.0004 24.0001Z"
-                  fill="#34A853"
-                />
-              </svg>
-              Continue with Google
-            </>
+        {/* Mode switcher tabs */}
+        <div className="mb-6 flex rounded-xl bg-secondary/80 p-1">
+          <button
+            type="button"
+            onClick={() => setIsSignup(false)}
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+              !isSignup
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSignup(true)}
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+              isSignup
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Create account
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          {isSignup && (
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <User className="h-3.5 w-3.5" /> Full Name (optional)
+              </span>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="field"
+                placeholder="Alex Rivera"
+                autoComplete="name"
+              />
+            </label>
           )}
-        </button>
+
+          <label className="block">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <Mail className="h-3.5 w-3.5" /> Email address
+            </span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field"
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5" /> Password
+              </span>
+              {isSignup && password.length > 0 && (
+                <span
+                  className={`text-[11px] ${
+                    password.length >= 6 ? "text-success" : "text-destructive"
+                  }`}
+                >
+                  {password.length >= 6 ? "Strong length" : "Min 6 chars"}
+                </span>
+              )}
+            </span>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field pr-10"
+                placeholder="At least 6 characters"
+                autoComplete={isSignup ? "new-password" : "current-password"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </label>
+
+          <div className="pt-1">
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn-primary w-full shadow-md"
+            >
+              {busy ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  Authenticating…
+                </span>
+              ) : isSignup ? (
+                "Create account"
+              ) : (
+                "Log in"
+              )}
+            </button>
+          </div>
+        </form>
 
         <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-          <span>Secure authentication with Google Identity</span>
+          <span>Secure authentication with encrypted credentials</span>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsSignup((v) => !v)}
+          className="mt-5 w-full text-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {isSignup
+            ? "Already have an account? Log in"
+            : "Need an account? Create one"}
+        </button>
       </div>
     </div>
   );

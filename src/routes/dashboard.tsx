@@ -1,4 +1,3 @@
-import { firebaseAuth } from "@/lib/firebase";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -626,7 +625,7 @@ function Dashboard() {
 
           <button
             onClick={async () => {
-              await firebaseAuth.signOut();
+              await auth.signOut();
               navigate({ to: "/" });
             }}
             className="btn-ghost py-1.5 px-2 sm:px-2.5 text-xs shrink-0"

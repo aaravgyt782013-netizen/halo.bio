@@ -18,13 +18,11 @@ export type SocialPlatform =
 
 export type SocialLink = {
   id: string;
-  platform: string;
+  platform: SocialPlatform | string;
   url: string;
   title?: string;
   icon_url?: string;
   active?: boolean;
-  full_cover?: boolean;
-  remove_bg?: boolean;
 };
 
 export type Profile = {
@@ -635,151 +633,413 @@ class ManualQueryBuilder<T extends Record<string, unknown>> {
   constructor(tableName: "profiles" | "links" | "user_roles") {
     this.tableName = tableName;
   }
+
   select(_columns?: string) {
     if (this.operation !== "insert" && this.operation !== "update") {
       this.operation = "select";
     }
     return this;
   }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   eq(column: string, value: any) {
     this.filters.push({ column, operator: "eq", value });
     return this;
   }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ilike(column: string, value: any) {
     this.filters.push({ column, operator: "ilike", value });
     return this;
   }
+
   order(column: string, config: { ascending?: boolean } = {}) {
     this.orderConfig = { column, ascending: config.ascending ?? true };
     return this;
   }
+
   limit(count: number) {
     this.limitCount = count;
     return this;
   }
+
   single() {
     this.isSingle = true;
     return this;
   }
+
   maybeSingle() {
     this.isMaybeSingle = true;
     return this;
   }
+
   update(changes: Partial<T>) {
     this.operation = "update";
     this.payload = changes;
     return this;
   }
+
   insert(values: Partial<T>) {
     this.operation = "insert";
     this.payload = values;
     return this;
   }
+
   delete() {
     this.operation = "delete";
     return this;
   }
 
+  private applyFilters<R extends Record<string, unknown>>(items: R[]): R[] {
+    return items.filter((item) => {
+      return this.filters.every((f) => {
+        const val = item[f.column];
+        if (f.operator === "eq") {
+          return val === f.value;
+        }
+        if (f.operator === "ilike") {
+          if (typeof val === "string" && typeof f.value === "string") {
+            return val.toLowerCase() === f.value.toLowerCase();
+          }
+          return val === f.value;
+        }
+        return true;
+      });
+    });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async execute(): Promise<{ data: any; error: Error | null }> {
-    try {
-      const {
-        collection,
-        doc,
-        getDocs,
-        getDoc,
-        query,
-        where,
-        orderBy,
-        limit,
-        setDoc,
-        updateDoc,
-        deleteDoc,
-      } = await import("firebase/firestore");
-      const { db } = await import("./firebase");
+    const store = getStore();
+    const currentUser = store.session?.user;
 
-      const collectionRef = collection(db, this.tableName);
+    // 1. user_roles query
+    if (this.tableName === "user_roles") {
+      let list: UserRole[] = [];
+      if (currentUser) {
+        list = [
+          {
+            id: "role-" + currentUser.id,
+            user_id: currentUser.id,
+            role: currentUser.role || "user",
+          },
+        ];
+      }
+      list = this.applyFilters(list);
+      const data =
+        this.isSingle || this.isMaybeSingle ? (list[0] ?? null) : list;
+      return { data, error: null };
+    }
 
+    // 2. profiles query
+    if (this.tableName === "profiles") {
       if (this.operation === "select") {
-        let q = query(collectionRef);
-
-        for (const filter of this.filters) {
-          if (filter.operator === "eq") {
-            if (filter.column === "id") {
-              // Fast path for ID lookup
-              const dSnap = await getDoc(doc(db, this.tableName, filter.value));
-              if (dSnap.exists()) {
-                const data = dSnap.data();
-                return {
-                  data: this.isSingle || this.isMaybeSingle ? data : [data],
-                  error: null,
-                };
-              } else {
-                return {
-                  data: this.isSingle || this.isMaybeSingle ? null : [],
-                  error: null,
-                };
+        // If admin and fetching all, try server-side admin endpoint
+        if (
+          currentUser?.role === "admin" &&
+          this.filters.length === 0 &&
+          typeof window !== "undefined" &&
+          typeof fetch !== "undefined"
+        ) {
+          try {
+            const adminRes = await fetch("/api/admin/profiles", {
+              headers: CSRF_HEADER,
+              credentials: "include",
+            });
+            if (adminRes.ok) {
+              const adminJson = await adminRes.json();
+              if (adminJson && Array.isArray(adminJson.profiles)) {
+                let list = [...adminJson.profiles];
+                if (this.orderConfig) {
+                  const { column, ascending } = this.orderConfig;
+                  list.sort((a, b) => {
+                    const av = a[column as keyof Profile];
+                    const bv = b[column as keyof Profile];
+                    if (av == null) return 1;
+                    if (bv == null) return -1;
+                    if (av < bv) return ascending ? -1 : 1;
+                    if (av > bv) return ascending ? 1 : -1;
+                    return 0;
+                  });
+                }
+                if (this.limitCount != null) {
+                  list = list.slice(0, this.limitCount);
+                }
+                return { data: list, error: null };
               }
             }
-            q = query(q, where(filter.column, "==", filter.value));
-          } else if (filter.operator === "ilike") {
-            // Firestore does not natively support case-insensitive ilike.
-            // We can just use exact match or fallback for now.
-            q = query(q, where(filter.column, "==", filter.value));
+          } catch {
+            // fallback to store
           }
         }
 
+        let list = [...store.profiles];
+        list = this.applyFilters(list);
         if (this.orderConfig) {
-          q = query(
-            q,
-            orderBy(
-              this.orderConfig.column,
-              this.orderConfig.ascending ? "asc" : "desc",
-            ),
-          );
+          const { column, ascending } = this.orderConfig;
+          list.sort((a, b) => {
+            const av = a[column as keyof Profile];
+            const bv = b[column as keyof Profile];
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (av < bv) return ascending ? -1 : 1;
+            if (av > bv) return ascending ? 1 : -1;
+            return 0;
+          });
         }
-        if (this.limitCount) {
-          q = query(q, limit(this.limitCount));
+        if (this.limitCount != null) {
+          list = list.slice(0, this.limitCount);
         }
-
-        const snapshot = await getDocs(q);
-        const results = snapshot.docs.map((d) => d.data());
-
-        if (this.isSingle || this.isMaybeSingle) {
-          return { data: results.length > 0 ? results[0] : null, error: null };
-        }
-        return { data: results, error: null };
-      }
-
-      if (this.operation === "insert") {
-        const id = this.payload.id || crypto.randomUUID();
-        const data = { ...this.payload, id };
-        await setDoc(doc(db, this.tableName, id), data);
+        const data =
+          this.isSingle || this.isMaybeSingle ? (list[0] ?? null) : list;
         return { data, error: null };
       }
 
       if (this.operation === "update") {
-        const idFilter = this.filters.find((f) => f.column === "id");
-        if (!idFilter)
-          throw new Error("Update without ID filter is not supported yet.");
-        await updateDoc(doc(db, this.tableName, idFilter.value), this.payload);
-        return { data: null, error: null };
+        const idFilter = this.filters.find(
+          (f) => f.column === "id" && f.operator === "eq",
+        );
+        const targetId = idFilter ? String(idFilter.value) : undefined;
+
+        // If target is someone else or admin action, route via admin endpoint
+        if (
+          targetId &&
+          currentUser?.role === "admin" &&
+          targetId !== currentUser.id
+        ) {
+          try {
+            const res = await fetch("/api/admin/profile-mutate", {
+              method: "POST",
+              headers: { "content-type": "application/json", ...CSRF_HEADER },
+              credentials: "include",
+              body: JSON.stringify({
+                targetUserId: targetId,
+                changes: this.payload,
+              }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              return {
+                data: null,
+                error: new Error(json.error || "Failed to update profile"),
+              };
+            }
+          } catch (err) {
+            return {
+              data: null,
+              error: err instanceof Error ? err : new Error("Network error"),
+            };
+          }
+        }
+
+        let updatedCount = 0;
+        store.profiles = store.profiles.map((p) => {
+          const match = this.filters.every((f) => {
+            if (f.operator === "eq")
+              return p[f.column as keyof Profile] === f.value;
+            if (f.operator === "ilike") {
+              const pv = p[f.column as keyof Profile];
+              return String(pv).toLowerCase() === String(f.value).toLowerCase();
+            }
+            return true;
+          });
+          if (match) {
+            updatedCount++;
+            return {
+              ...p,
+              ...this.payload,
+              updated_at: new Date().toISOString(),
+            };
+          }
+          return p;
+        });
+
+        if (updatedCount === 0 && (targetId || currentUser?.id)) {
+          const effectiveId = targetId || currentUser?.id;
+          if (effectiveId) {
+            const existingIdx = store.profiles.findIndex(
+              (p) => p.id === effectiveId,
+            );
+            if (existingIdx >= 0) {
+              store.profiles[existingIdx] = {
+                ...store.profiles[existingIdx],
+                ...this.payload,
+                updated_at: new Date().toISOString(),
+              };
+              updatedCount = 1;
+            } else {
+              store.profiles.push({
+                id: effectiveId,
+                username: null,
+                display_name: null,
+                bio: null,
+                avatar_url: null,
+                background_type: "color",
+                background_value: "#0b0f19",
+                card_opacity: 0.65,
+                card_radius: 24,
+                card_blur: 20,
+                glass_intensity: "medium",
+                social_links: [],
+                accent_color: "#3b82f6",
+                music_url: null,
+                music_enabled: false,
+                enter_text: "Click to Enter",
+                is_premium: false,
+                is_banned: false,
+                is_flagged: false,
+                views: 0,
+                created_at: new Date().toISOString(),
+                ...this.payload,
+                updated_at: new Date().toISOString(),
+              });
+              updatedCount = 1;
+            }
+          }
+        }
+
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
+        return { data: { count: updatedCount }, error: null };
       }
 
       if (this.operation === "delete") {
-        const idFilter = this.filters.find((f) => f.column === "id");
-        if (!idFilter)
-          throw new Error("Delete without ID filter is not supported yet.");
-        await deleteDoc(doc(db, this.tableName, idFilter.value));
+        const idFilter = this.filters.find(
+          (f) => f.column === "id" && f.operator === "eq",
+        );
+        const targetId = idFilter ? String(idFilter.value) : undefined;
+
+        if (targetId && currentUser?.role === "admin") {
+          try {
+            const res = await fetch("/api/admin/delete-profile", {
+              method: "POST",
+              headers: { "content-type": "application/json", ...CSRF_HEADER },
+              credentials: "include",
+              body: JSON.stringify({ targetUserId: targetId }),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+              return {
+                data: null,
+                error: new Error(json.error || "Failed to delete profile"),
+              };
+            }
+          } catch (err) {
+            return {
+              data: null,
+              error: err instanceof Error ? err : new Error("Network error"),
+            };
+          }
+        }
+
+        store.profiles = store.profiles.filter((p) => {
+          return !this.filters.every((f) => {
+            if (f.operator === "eq")
+              return p[f.column as keyof Profile] === f.value;
+            return true;
+          });
+        });
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
         return { data: null, error: null };
       }
-
-      return { data: null, error: new Error("Unsupported operation") };
-    } catch (err: unknown) {
-      return { data: null, error: err as Error };
     }
+
+    // 3. links query
+    if (this.tableName === "links") {
+      if (this.operation === "select") {
+        let list = [...store.links];
+        list = this.applyFilters(list);
+        if (this.orderConfig) {
+          const { column, ascending } = this.orderConfig;
+          list.sort((a, b) => {
+            const av = a[column as keyof BioLink];
+            const bv = b[column as keyof BioLink];
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (av < bv) return ascending ? -1 : 1;
+            if (av > bv) return ascending ? 1 : -1;
+            return 0;
+          });
+        }
+        const data =
+          this.isSingle || this.isMaybeSingle ? (list[0] ?? null) : list;
+        return { data, error: null };
+      }
+
+      if (this.operation === "insert") {
+        const newLink: BioLink = {
+          id: "lnk-" + Math.random().toString(36).substring(2, 10),
+          user_id: this.payload.user_id || currentUser?.id,
+          title: this.payload.title || "New Link",
+          url: this.payload.url || "https://",
+          position: this.payload.position ?? store.links.length,
+          clicks: 0,
+          created_at: new Date().toISOString(),
+          ...this.payload,
+        };
+        store.links.push(newLink);
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
+        return { data: newLink, error: null };
+      }
+
+      if (this.operation === "update") {
+        let updatedCount = 0;
+        store.links = store.links.map((link) => {
+          const match = this.filters.every((f) => {
+            if (f.operator === "eq")
+              return link[f.column as keyof BioLink] === f.value;
+            return true;
+          });
+          if (match) {
+            updatedCount++;
+            return { ...link, ...this.payload };
+          }
+          return link;
+        });
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
+        return { data: { count: updatedCount }, error: null };
+      }
+
+      if (this.operation === "delete") {
+        store.links = store.links.filter((link) => {
+          return !this.filters.every((f) => {
+            if (f.operator === "eq")
+              return link[f.column as keyof BioLink] === f.value;
+            return true;
+          });
+        });
+        const syncRes = await syncToServer(currentUser?.id);
+        if (!syncRes.success) {
+          return { data: null, error: new Error(syncRes.error) };
+        }
+        return { data: null, error: null };
+      }
+    }
+
+    return { data: null, error: null };
+  }
+
+  then<TResult1 = { data: unknown; error: Error | null }, TResult2 = never>(
+    onfulfilled?:
+      | ((value: {
+          data: unknown;
+          error: Error | null;
+        }) => TResult1 | PromiseLike<TResult1>)
+      | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    return this.execute().then(onfulfilled, onrejected);
   }
 }
 
@@ -1133,40 +1393,58 @@ export async function uploadMedia(
     }
   }
 
+  // First attempt robust server-side media upload (writes to /public/uploads and streams via /api/media)
   try {
-    const { ref, uploadBytesResumable, getDownloadURL } =
-      await import("firebase/storage");
-    const { storage } = await import("./firebase");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder);
+    formData.append("userId", userId);
 
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const filePath = `${folder}/${userId}/${fileName}`;
+    const url = await new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload");
+      xhr.setRequestHeader("x-requested-with", "halo-app");
 
-    const storageRef = ref(storage, filePath);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+      if (onProgress && xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.round((e.loaded * 100) / e.total));
+          }
+        };
+      }
 
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) onProgress(progress);
-        },
-        (error) => {
-          reject(new Error("Failed to upload media to Firebase Storage"));
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        },
-      );
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.url) resolve(data.url);
+            else reject(new Error(data.error || "Upload failed without URL"));
+          } catch (e) {
+            reject(new Error("Invalid JSON response from upload API"));
+          }
+        } else {
+          reject(new Error(`Server returned status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(formData);
     });
-  } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Failed to upload media";
-    throw new Error(message);
+
+    if (url) return url;
+  } catch (serverErr) {
+    console.warn(
+      "Direct server upload attempt failed, falling back:",
+      serverErr,
+    );
   }
+
+  // Optimize and downscale images via Canvas if server upload wasn't used
+  if (file.type.startsWith("image/") && typeof window !== "undefined") {
+    return optimizeImageDataUrl(file, folder);
+  }
+
+  return readDirect(file);
 }
 
 function readDirect(file: File): Promise<string> {

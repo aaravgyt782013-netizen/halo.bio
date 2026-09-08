@@ -253,107 +253,170 @@ export function ProfileView({
         ) : profile.background_type === "image" && resolvedBgValue ? (
           <img
             src={resolvedBgValue}
-            alt="Background"
-            className="absolute inset-0 h-full w-full object-cover"
+            alt=""
+            className="h-full w-full object-cover pointer-events-none"
+            loading="lazy"
           />
-        ) : profile.background_type === "color" && resolvedBgValue ? (
+        ) : (
           <div
-            className="absolute inset-0"
-            style={{ backgroundColor: resolvedBgValue }}
+            className="h-full w-full"
+            style={{ backgroundColor: profile.background_value || "#0b0f19" }}
           />
-        ) : null}
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-foreground/15 backdrop-brightness-95" />
       </div>
 
-      <div className="relative z-10 flex min-h-full flex-col items-center justify-start p-4 sm:p-8">
-        <div
-          className="w-full max-w-[480px] animate-float-in pb-16"
-          style={{
-            backgroundColor: `rgba(255, 255, 255, ${(profile.card_opacity / 100) * 0.1})`,
-            backdropFilter: `blur(${profile.card_blur}px)`,
-            borderRadius: `${profile.card_radius}px`,
-            border: "1px solid color-mix(in oklab, white 20%, transparent)",
-          }}
+      {/* Black Enter Screen Overlay */}
+      {!entered && (
+        <button
+          type="button"
+          onClick={handleEnter}
+          className={`absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center select-none cursor-pointer transition-all duration-500 ${
+            leaving ? "animate-enter-out pointer-events-none" : ""
+          }`}
+          style={{ backgroundColor: "#000000" }}
+          aria-label="Click to enter profile"
         >
-          <div className="flex flex-col items-center p-6 text-center">
+          <div className="flex flex-col items-center gap-3.5">
+            <span className="animate-pulse-soft font-display text-2xl sm:text-3xl font-bold tracking-wider text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.45)]">
+              {profile.enter_text || "Click To Enter"}
+            </span>
+
+            {profile.music_enabled && profile.music_url ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md shadow-lg">
+                <Music className="h-3.5 w-3.5 text-blue-400 animate-pulse" />
+                <span>Audio enabled · Tap anywhere</span>
+              </span>
+            ) : (
+              <span className="text-xs font-medium tracking-widest text-white/40 uppercase">
+                Tap anywhere to open
+              </span>
+            )}
+          </div>
+        </button>
+      )}
+
+      {/* Content */}
+      <div
+        className={`relative z-10 flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-10 ${
+          entered ? "animate-float-in" : "opacity-0"
+        }`}
+      >
+        <div
+          className="w-full max-w-sm border border-glass-border p-6 text-center shadow-glass relative"
+          style={cardStyle}
+        >
+          {/* Top action: Share profile */}
+          {!preview && (
+            <button
+              type="button"
+              onClick={handleShare}
+              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors"
+              title="Share profile"
+              aria-label="Share profile"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-success" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
+            </button>
+          )}
+
+          <div className="mx-auto mb-4 h-[92px] w-[92px] overflow-hidden rounded-full border-2 border-glass-border shadow-soft">
             {profile.avatar_url ? (
               <img
                 src={profile.avatar_url}
-                alt={profile.display_name || profile.username || "Avatar"}
-                className="mb-4 h-24 w-24 rounded-full object-cover shadow-md"
+                alt={`${profile.username ?? "user"} avatar`}
+                className="h-full w-full object-cover"
               />
             ) : (
-              <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-primary/20 text-3xl text-primary shadow-md">
-                {(profile.display_name || profile.username || "?")
-                  .charAt(0)
+              <div className="flex h-full w-full items-center justify-center bg-secondary text-2xl font-bold text-secondary-foreground">
+                {(profile.display_name ?? profile.username ?? "?")
+                  .slice(0, 1)
                   .toUpperCase()}
               </div>
             )}
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              {profile.display_name || `@${profile.username}`}
+          </div>
+
+          <div className="flex items-center justify-center gap-1.5">
+            <h1 className="font-display text-xl font-bold text-foreground tracking-tight">
+              {profile.display_name || profile.username || "unnamed"}
             </h1>
-            {profile.bio && (
-              <p className="mt-2 text-sm text-foreground/90 whitespace-pre-wrap">
-                {profile.bio}
-              </p>
+            {profile.is_premium && (
+              <BadgeCheck
+                className="h-5 w-5"
+                style={{ color: profile.accent_color }}
+              />
+            )}
+          </div>
+          {profile.username && (
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground tracking-wide">
+              @{profile.username}
+            </p>
+          )}
+          {profile.bio && (
+            <p className="mt-3 text-sm leading-relaxed text-foreground/85 whitespace-pre-line">
+              {profile.bio}
+            </p>
+          )}
+
+          {/* Social Media Icon Links */}
+          {profile.social_links &&
+            profile.social_links.filter((s) => s.active !== false).length >
+              0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {profile.social_links
+                  .filter((s) => s.active !== false)
+                  .map((soc) => {
+                    const cfg = getPlatformConfig(soc.platform);
+                    const Icon = cfg.icon;
+                    const safeSocUrl = ensureProtocol(soc.url);
+                    const label = soc.title || cfg.label;
+
+                    return (
+                      <a
+                        key={soc.id}
+                        href={preview ? undefined : safeSocUrl || "#"}
+                        target={preview ? undefined : "_blank"}
+                        rel={preview ? undefined : "noreferrer noopener"}
+                        onClick={(e) => {
+                          if (preview) {
+                            e.preventDefault();
+                            toast.info(`Preview: ${label} link`);
+                          }
+                        }}
+                        className={`group relative flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm overflow-hidden ${
+                          soc.icon_url
+                            ? "border-transparent"
+                            : "border border-glass-border"
+                        }`}
+                        style={{
+                          backgroundColor: soc.icon_url
+                            ? "transparent"
+                            : "color-mix(in oklab, white 68%, transparent)",
+                          backdropFilter: soc.icon_url
+                            ? "none"
+                            : `blur(${Math.max(6, profile.card_blur / 2)}px)`,
+                        }}
+                        title={label}
+                        aria-label={label}
+                      >
+                        {soc.icon_url ? (
+                          <img
+                            src={soc.icon_url}
+                            alt={label}
+                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                          />
+                        ) : (
+                          <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />
+                        )}
+                      </a>
+                    );
+                  })}
+              </div>
             )}
 
-            {profile.social_links &&
-              profile.social_links.filter((s) => s.active !== false).length >
-                0 && (
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                  {profile.social_links
-                    .filter((s) => s.active !== false)
-                    .map((soc) => {
-                      const cfg = getPlatformConfig(soc.platform);
-                      const Icon = cfg.icon;
-                      const safeSocUrl = ensureProtocol(soc.url);
-                      const label = soc.title || cfg.label;
-
-                      return (
-                        <a
-                          key={soc.id}
-                          href={preview ? undefined : safeSocUrl || "#"}
-                          target={preview ? undefined : "_blank"}
-                          rel={preview ? undefined : "noreferrer noopener"}
-                          onClick={(e) => {
-                            if (preview) {
-                              e.preventDefault();
-                              toast.info(`Preview: ${label} link`);
-                            }
-                          }}
-                          className={`group relative flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm overflow-hidden ${
-                            soc.icon_url
-                              ? "border-transparent"
-                              : "border border-glass-border"
-                          }`}
-                          style={{
-                            backgroundColor:
-                              soc.remove_bg || soc.icon_url
-                                ? "transparent"
-                                : "color-mix(in oklab, white 68%, transparent)",
-                            backdropFilter:
-                              soc.remove_bg || soc.icon_url
-                                ? "none"
-                                : `blur(${Math.max(6, profile.card_blur / 2)}px)`,
-                          }}
-                          title={label}
-                          aria-label={label}
-                        >
-                          {soc.icon_url ? (
-                            <img
-                              src={soc.icon_url}
-                              alt={label}
-                              className={`h-full w-full object-cover transition-transform group-hover:scale-110 ${soc.full_cover ? "rounded-full scale-110" : "p-[6px]"}`}
-                            />
-                          ) : (
-                            <Icon className="h-4 w-4 text-foreground/85 transition-colors group-hover:text-foreground" />
-                          )}
-                        </a>
-                      );
-                    })}
-                </div>
-              )}
-          </div>
           <div className="mt-5 space-y-2.5">
             {links.length === 0 && (
               <p className="text-xs text-muted-foreground py-2">

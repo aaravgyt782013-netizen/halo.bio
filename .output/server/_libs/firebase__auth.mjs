@@ -1,4 +1,4 @@
-import { A as isMobileCordova, C as getModularInstance, D as isCloudflareWorker, E as isCloudWorkstation, F as querystringDecode, N as pingServer, O as isEmpty, P as querystring, S as getExperimentalSetting, T as isBrowserExtension, _ as createSubscribe, a as getApp, b as getDefaultEmulatorHost, c as registerVersion, d as Component, f as Deferred, h as base64Decode, i as _registerComponent, j as isReactNative, k as isIE, l as LogLevel, m as FirebaseError, n as _getProvider, p as ErrorFactory, r as _isFirebaseServerApp, t as SDK_VERSION, u as Logger, v as deepEqual, w as getUA, y as extractQuerystring } from "./@firebase/app+[...].mjs";
+import { A as isReactNative, C as getUA, D as isEmpty, E as isCloudflareWorker, M as pingServer, N as querystring, O as isIE, P as querystringDecode, S as getModularInstance, T as isCloudWorkstation, _ as deepEqual, a as getApp, c as LogLevel, d as Deferred, f as ErrorFactory, g as createSubscribe, i as _registerComponent, k as isMobileCordova, l as Logger, m as base64Decode, n as _getProvider, p as FirebaseError, r as _isFirebaseServerApp, s as registerVersion, t as SDK_VERSION, u as Component, v as extractQuerystring, w as isBrowserExtension, x as getExperimentalSetting, y as getDefaultEmulatorHost } from "./@firebase/app+[...].mjs";
 //#region node_modules/@firebase/auth/dist/esm/index-CvXU3_1x.js
 /**
 * @license
@@ -98,6 +98,13 @@ function _errorWithCustomMessage(auth, code, message) {
 }
 function _serverAppCurrentUserOperationNotSupportedError(auth) {
 	return _errorWithCustomMessage(auth, "operation-not-supported-in-this-environment", "Operations that alter the current user are not supported in conjunction with FirebaseServerApp");
+}
+function _assertInstanceOf(auth, object, instance) {
+	const constructorInstance = instance;
+	if (!(object instanceof constructorInstance)) {
+		if (constructorInstance.name !== object.constructor.name) _fail(auth, "argument-error");
+		throw _errorWithCustomMessage(auth, "argument-error", `Type of ${object.constructor.name} does not match expected instance.Did you pass a reference from a different Auth SDK?`);
+	}
 }
 function createErrorInternal(authOrCode, ...rest) {
 	if (typeof authOrCode !== "string") {
@@ -3751,9 +3758,6 @@ TwitterAuthProvider.PROVIDER_ID = "twitter.com";
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-async function signUp(auth, request) {
-	return _performSignInRequest(auth, "POST", "/v1/accounts:signUp", _addTidIfNecessary(auth, request));
-}
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -3952,23 +3956,6 @@ async function _signInWithCredential(auth, credential, bypassAuthState = false) 
 	return userCredential;
 }
 /**
-* Asynchronously signs in with the given credentials.
-*
-* @remarks
-* An {@link AuthProvider} can be used to generate the credential.
-*
-* This method is not supported by {@link Auth} instances created with a
-* {@link @firebase/app#FirebaseServerApp}.
-*
-* @param auth - The {@link Auth} instance.
-* @param credential - The auth credential.
-*
-* @public
-*/
-async function signInWithCredential(auth, credential) {
-	return _signInWithCredential(_castAuth(auth), credential);
-}
-/**
 * @license
 * Copyright 2020 Google LLC
 *
@@ -4048,89 +4035,6 @@ async function signInWithCredential(auth, credential) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-/**
-* Updates the password policy cached in the {@link Auth} instance if a policy is already
-* cached for the project or tenant.
-*
-* @remarks
-* We only fetch the password policy if the password did not meet policy requirements and
-* there is an existing policy cached. A developer must call validatePassword at least
-* once for the cache to be automatically updated.
-*
-* @param auth - The {@link Auth} instance.
-*
-* @private
-*/
-async function recachePasswordPolicy(auth) {
-	const authInternal = _castAuth(auth);
-	if (authInternal._getPasswordPolicyInternal()) await authInternal._updatePasswordPolicy();
-}
-/**
-* Creates a new user account associated with the specified email address and password.
-*
-* @remarks
-* On successful creation of the user account, this user will also be signed in to your application.
-*
-* User account creation can fail if the account already exists or the password is invalid.
-*
-* This method is not supported on {@link Auth} instances created with a
-* {@link @firebase/app#FirebaseServerApp}.
-*
-* Note: The email address acts as a unique identifier for the user and enables an email-based
-* password reset. This function will create a new user account and set the initial user password.
-*
-* @param auth - The {@link Auth} instance.
-* @param email - The user's email address.
-* @param password - The user's chosen password.
-*
-* @public
-*/
-async function createUserWithEmailAndPassword(auth, email, password) {
-	if (_isFirebaseServerApp(auth.app)) return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
-	const authInternal = _castAuth(auth);
-	const response = await handleRecaptchaFlow(authInternal, {
-		returnSecureToken: true,
-		email,
-		password,
-		clientType: "CLIENT_TYPE_WEB"
-	}, "signUpPassword", signUp, "EMAIL_PASSWORD_PROVIDER").catch((error) => {
-		if (error.code === `auth/password-does-not-meet-requirements`) recachePasswordPolicy(auth);
-		throw error;
-	});
-	const userCredential = await UserCredentialImpl._fromIdTokenResponse(authInternal, "signIn", response);
-	await authInternal._updateCurrentUser(userCredential.user);
-	return userCredential;
-}
-/**
-* Asynchronously signs in using an email and password.
-*
-* @remarks
-* Fails with an error if the email address and password do not match. When
-* {@link https://cloud.google.com/identity-platform/docs/admin/email-enumeration-protection | Email Enumeration Protection}
-* is enabled, this method fails with "auth/invalid-credential" in case of an invalid
-* email/password.
-*
-* This method is not supported on {@link Auth} instances created with a
-* {@link @firebase/app#FirebaseServerApp}.
-*
-* Note: The user's password is NOT the password used to access the user's email account. The
-* email address serves as a unique identifier for the user, and the password is used to access
-* the user's account in your Firebase project. See also: {@link createUserWithEmailAndPassword}.
-*
-*
-* @param auth - The {@link Auth} instance.
-* @param email - The users email address.
-* @param password - The users password.
-*
-* @public
-*/
-function signInWithEmailAndPassword(auth, email, password) {
-	if (_isFirebaseServerApp(auth.app)) return Promise.reject(_serverAppCurrentUserOperationNotSupportedError(auth));
-	return signInWithCredential(getModularInstance(auth), EmailAuthProvider.credential(email, password)).catch(async (error) => {
-		if (error.code === `auth/password-does-not-meet-requirements`) recachePasswordPolicy(auth);
-		throw error;
-	});
-}
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -4274,24 +4178,6 @@ function onIdTokenChanged(auth, nextOrObserver, error, completed) {
 */
 function beforeAuthStateChanged(auth, callback, onAbort) {
 	return getModularInstance(auth).beforeAuthStateChanged(callback, onAbort);
-}
-/**
-* Adds an observer for changes to the user's sign-in state.
-*
-* @remarks
-* To keep the old behavior, see {@link onIdTokenChanged}.
-*
-* @param auth - The {@link Auth} instance.
-* @param nextOrObserver - callback triggered on change.
-* @param error - Deprecated. This callback is never triggered. Errors
-* on signing in/out can be caught in promises returned from
-* sign-in/sign-out functions.
-* @param completed - Deprecated. This callback is never triggered.
-*
-* @public
-*/
-function onAuthStateChanged(auth, nextOrObserver, error, completed) {
-	return getModularInstance(auth).onAuthStateChanged(nextOrObserver, error, completed);
 }
 /**
 * @license
@@ -5809,6 +5695,43 @@ var AbstractPopupRedirectOperation = class {
 */
 var _POLL_WINDOW_CLOSE_TIMEOUT = new Delay(2e3, 1e4);
 /**
+* Authenticates a Firebase client using a popup-based OAuth authentication flow.
+*
+* @remarks
+* If succeeds, returns the signed in user along with the provider's credential. If sign in was
+* unsuccessful, returns an error object containing additional information about the error.
+*
+* This method does not work in a Node.js environment or with {@link Auth} instances created with a
+* {@link @firebase/app#FirebaseServerApp}.
+*
+* @example
+* ```javascript
+* // Sign in using a popup.
+* const provider = new FacebookAuthProvider();
+* const result = await signInWithPopup(auth, provider);
+*
+* // The signed-in user info.
+* const user = result.user;
+* // This gives you a Facebook Access Token.
+* const credential = provider.credentialFromResult(auth, result);
+* const token = credential.accessToken;
+* ```
+*
+* @param auth - The {@link Auth} instance.
+* @param provider - The provider to authenticate. The provider has to be an {@link OAuthProvider}.
+* Non-OAuth providers like {@link EmailAuthProvider} will throw an error.
+* @param resolver - An instance of {@link PopupRedirectResolver}, optional
+* if already supplied to {@link initializeAuth} or provided by {@link getAuth}.
+*
+* @public
+*/
+async function signInWithPopup(auth, provider, resolver) {
+	if (_isFirebaseServerApp(auth.app)) return Promise.reject(_createError(auth, "operation-not-supported-in-this-environment"));
+	const authInternal = _castAuth(auth);
+	_assertInstanceOf(auth, provider, FederatedAuthProvider);
+	return new PopupOperation(authInternal, "signInViaPopup", provider, _withDefaultResolver(authInternal, resolver)).executeNotNull();
+}
+/**
 * Popup event manager. Handles the popup's entire lifecycle; listens to auth
 * events
 *
@@ -6906,4 +6829,4 @@ _setExternalJSProvider({
 });
 registerAuth("Browser");
 //#endregion
-export { signInWithEmailAndPassword as i, getAuth as n, onAuthStateChanged as r, createUserWithEmailAndPassword as t };
+export { getAuth as n, signInWithPopup as r, GoogleAuthProvider as t };
