@@ -46,8 +46,6 @@ export function SocialLinksEditor({
   const [customTitle, setCustomTitle] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [customIconUrl, setCustomIconUrl] = useState("");
-  const [customRemoveBg, setCustomRemoveBg] = useState<boolean>(true);
-  const [customFitMode, setCustomFitMode] = useState<"cover" | "contain">("cover");
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -56,8 +54,6 @@ export function SocialLinksEditor({
   const [editUrlValue, setEditUrlValue] = useState("");
   const [editTitleValue, setEditTitleValue] = useState("");
   const [editIconUrlValue, setEditIconUrlValue] = useState("");
-  const [editRemoveBgValue, setEditRemoveBgValue] = useState<boolean>(true);
-  const [editFitModeValue, setEditFitModeValue] = useState<"cover" | "contain">("cover");
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const currentPlatformConfig = getPlatformConfig(selectedPlatform);
@@ -103,8 +99,6 @@ export function SocialLinksEditor({
       icon_url: customIconUrl.trim() || undefined,
       url: formatted,
       active: true,
-      remove_bg: customRemoveBg,
-      fit_mode: customFitMode,
     };
 
     onChange([...socialLinks, newLink]);
@@ -194,8 +188,6 @@ export function SocialLinksEditor({
     setEditUrlValue(link.url);
     setEditTitleValue(link.title || "");
     setEditIconUrlValue(link.icon_url || "");
-    setEditRemoveBgValue(link.remove_bg !== undefined ? link.remove_bg : true);
-    setEditFitModeValue(link.fit_mode || "cover");
   };
 
   const handleSaveInlineEdit = (id: string) => {
@@ -213,8 +205,6 @@ export function SocialLinksEditor({
               url: formatted,
               title: editTitleValue.trim() || undefined,
               icon_url: editIconUrlValue.trim() || undefined,
-              remove_bg: editRemoveBgValue,
-              fit_mode: editFitModeValue,
             }
           : l,
       ),
