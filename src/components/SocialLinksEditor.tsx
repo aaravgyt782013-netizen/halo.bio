@@ -205,7 +205,9 @@ export function SocialLinksEditor({
     setEditTitleValue(link.title || "");
     setEditIconUrlValue(link.icon_url || "");
     setEditRemoveBgValue(
-      link.remove_bg !== undefined ? link.remove_bg : link.platform === "custom",
+      link.remove_bg !== undefined
+        ? link.remove_bg
+        : link.platform === "custom",
     );
     setEditFitModeValue(link.fit_mode || "cover");
   };

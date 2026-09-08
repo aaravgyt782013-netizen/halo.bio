@@ -1394,93 +1394,43 @@ export async function uploadMedia(
     }
   }
 
-  // First attempt robust server-side media upload (writes to /public/uploads and streams via /api/media)
   try {
-    const CHUNK_SIZE = 800 * 1024; // 800KB chunks to bypass 1MB Nginx limits safely
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const { storage } = await import("./firebase");
+    if (!storage) throw new Error("Firebase storage not initialized");
+    const { ref, uploadBytesResumable, getDownloadURL } =
+      await import("firebase/storage");
 
-    if (totalChunks > 1) {
-      // Chunked upload
-      const uploadId = `${userId}-${Date.now()}`;
-      let finalUrl = "";
+    const ext =
+      file.name.split(".").pop()?.toLowerCase() ||
+      (file.type.startsWith("video/") ? "mp4" : "bin");
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+    const storageRef = ref(storage, `${userId}/${folder}/${filename}`);
 
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
+    // Use uploadBytesResumable to handle large files seamlessly
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-        const formData = new FormData();
-        formData.append("file", chunk, file.name);
-        formData.append("folder", folder);
-        formData.append("userId", userId);
-        formData.append("chunkIndex", String(i));
-        formData.append("totalChunks", String(totalChunks));
-        formData.append("uploadId", uploadId);
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          headers: { "x-requested-with": "halo-app" },
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errData = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          throw new Error(
-            errData.error ||
-              `Upload failed with status ${res.status} on chunk ${i + 1}/${totalChunks}`,
-          );
-        }
-
-        const data = (await res.json()) as { url?: string; error?: string };
-        if (data.url) {
-          finalUrl = data.url;
-        }
-      }
-      if (finalUrl) return finalUrl;
-    } else {
-      // Single payload (file < 800KB)
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", folder);
-      formData.append("userId", userId);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "x-requested-with": "halo-app",
+    return new Promise((resolve, reject) => {
+      uploadTask.on(
+        "state_changed",
+        () => {}, // progress can be added here if needed
+        (error) => {
+          reject(new Error(`Failed to upload to storage: ${error.message}`));
         },
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as { url?: string; error?: string };
-        if (data.url) {
-          return data.url;
-        }
-      } else {
-        const errData = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
-          throw new Error(
-            errData.error ||
-              `Upload failed with status ${res.status}. Please try again.`,
-          );
-        }
-      }
-    }
-  } catch (serverErr) {
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          } catch (err) {
+            reject(new Error("Failed to retrieve download URL after upload"));
+          }
+        },
+      );
+    });
+  } catch (err) {
     if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
-      throw serverErr instanceof Error
-        ? serverErr
-        : new Error("Failed to upload media to server.");
+      throw err instanceof Error ? err : new Error("Failed to upload media");
     }
-    console.warn(
-      "Direct server upload attempt failed, falling back:",
-      serverErr,
-    );
+    console.warn("Direct storage upload failed, falling back to base64:", err);
   }
 
   // Optimize and downscale images via Canvas if server upload wasn't used
