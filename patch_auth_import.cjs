@@ -1,13 +1,9 @@
 const fs = require("fs");
 let code = fs.readFileSync("src/routes/auth.tsx", "utf8");
 
-const regex = /import \{[\s\S]*?\} from "firebase\/auth";/;
 code = code.replace(
-  regex,
-  `import {
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "firebase/auth";`,
+  'import { useAuth } from "../lib/useAuth";',
+  'import { useAuth } from "../hooks/useAuth";',
 );
 
 fs.writeFileSync("src/routes/auth.tsx", code);
