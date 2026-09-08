@@ -1424,17 +1424,24 @@ function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="btn-ghost py-1.5 px-3 text-xs cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-primary transition-all shrink-0">
                     <Upload className="h-3.5 w-3.5 text-primary" />
-                    <span>Upload MP3 File (max 3.5MB)</span>
+                    <span>Upload MP3 File (max 15MB)</span>
                     <input
                       type="file"
                       accept="audio/*"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file)
+                        if (file) {
+                          if (file.size > 15 * 1024 * 1024) {
+                            toast.error(
+                              "Audio exceeds 15MB limit. Please use a smaller file or provide a URL.",
+                            );
+                            return;
+                          }
                           void upload(file, "music", (url) =>
                             patch({ music_url: url, music_enabled: true }),
                           );
+                        }
                       }}
                     />
                   </label>

@@ -76,12 +76,21 @@ function PublicProfile() {
     };
 
     const fetchDB = () => {
+      try {
+        const tick = localStorage.getItem("halo_sync_tick");
+        if (tick && Date.now() - parseInt(tick) < 5000) {
+          return; // Local changes are too fresh, skip DB fetch completely
+        }
+      } catch (err) {
+        console.warn("Local storage error:", err);
+      }
+
       void fetchProfileByUsername(profile.username).then((fresh) => {
         if (fresh && fresh.profile) {
-          // If local storage tick is very recent, skip DB overwrite to prevent flickering
+          // Check again in case local storage updated during the fetch
           try {
             const tick = localStorage.getItem("halo_sync_tick");
-            if (tick && Date.now() - parseInt(tick) < 3000) {
+            if (tick && Date.now() - parseInt(tick) < 5000) {
               return; // Local changes are too fresh, DB might be stale
             }
           } catch (err) {
@@ -111,6 +120,20 @@ function PublicProfile() {
   const handleEnter = async () => {
     // Record view ONLY when user clicks the "Click To Enter" black screen
     // The backend /api/view checks visitor IP address to ensure only 1 view per IP
+    try {
+      const viewedKey = `halo_viewed_${profile.username}`;
+      const lastViewed = localStorage.getItem(viewedKey);
+      if (
+        lastViewed &&
+        Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
+      ) {
+        return; // Already viewed recently on this device
+      }
+      localStorage.setItem(viewedKey, String(Date.now()));
+    } catch (err) {
+      console.warn("Local storage err:", err);
+    }
+
     const res = await db.rpc("increment_profile_view", {
       _username: profile.username,
     });
@@ -132,6 +155,19 @@ function PublicProfile() {
         links={links}
         onEnter={handleEnter}
         onLinkClick={(link) => {
+          try {
+            const clickedKey = `halo_clicked_${link.id}`;
+            const lastClicked = localStorage.getItem(clickedKey);
+            if (
+              lastClicked &&
+              Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
+            ) {
+              return;
+            }
+            localStorage.setItem(clickedKey, String(Date.now()));
+          } catch (err) {
+            console.warn("Local storage err:", err);
+          }
           void db.rpc("increment_link_click", { _link_id: link.id });
         }}
       />
@@ -168,6 +204,20 @@ function ProfileNotFound() {
           profile={clientProfile.profile}
           links={clientProfile.links}
           onEnter={async () => {
+            try {
+              const viewedKey = `halo_viewed_${clientProfile.profile.username}`;
+              const lastViewed = localStorage.getItem(viewedKey);
+              if (
+                lastViewed &&
+                Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
+              ) {
+                return;
+              }
+              localStorage.setItem(viewedKey, String(Date.now()));
+            } catch (err) {
+              console.warn("Local storage err:", err);
+            }
+
             const res = await db.rpc("increment_profile_view", {
               _username: clientProfile.profile.username,
             });
@@ -189,6 +239,19 @@ function ProfileNotFound() {
             }
           }}
           onLinkClick={(link) => {
+            try {
+              const clickedKey = `halo_clicked_${link.id}`;
+              const lastClicked = localStorage.getItem(clickedKey);
+              if (
+                lastClicked &&
+                Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
+              ) {
+                return;
+              }
+              localStorage.setItem(clickedKey, String(Date.now()));
+            } catch (err) {
+              console.warn("Local storage err:", err);
+            }
             void db.rpc("increment_link_click", { _link_id: link.id });
           }}
         />
