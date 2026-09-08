@@ -1,3 +1,4 @@
+import { firebaseAuth } from "@/lib/firebase";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -198,6 +199,7 @@ function Dashboard() {
   const [previewMode, setPreviewMode] = useState<"profile" | "enter">(
     "profile",
   );
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // Audio testing
   const [testAudioPlaying, setTestAudioPlaying] = useState(false);
@@ -429,13 +431,17 @@ function Dashboard() {
   ) => {
     if (!user) return;
     try {
-      toast.info("Optimizing & uploading…");
-      const url = await uploadMedia(user.id, file, folder);
+      setUploadProgress(0);
+      const url = await uploadMedia(user.id, file, folder, (progress) => {
+        setUploadProgress(progress);
+      });
       onDone(url);
       setIsDirty(true);
       toast.success("Uploaded successfully!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -513,6 +519,19 @@ function Dashboard() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
+      {uploadProgress !== null && (
+        <div className="fixed top-0 left-0 right-0 z-[100]">
+          <div className="h-1.5 w-full bg-secondary overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+          <div className="absolute top-2 right-4 rounded-md bg-background/90 backdrop-blur-sm px-2 py-1 text-[10px] font-bold text-foreground border border-border shadow-sm">
+            Uploading: {uploadProgress}%
+          </div>
+        </div>
+      )}
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
 
       {/* Navigation header */}
@@ -607,7 +626,7 @@ function Dashboard() {
 
           <button
             onClick={async () => {
-              await auth.signOut();
+              await firebaseAuth.signOut();
               navigate({ to: "/" });
             }}
             className="btn-ghost py-1.5 px-2 sm:px-2.5 text-xs shrink-0"

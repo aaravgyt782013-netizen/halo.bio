@@ -45,7 +45,8 @@
   --color-glass: var(--glass);
   --color-glass-border: var(--glass-border);
 
-  --shadow-glass: 0 1px 1px oklch(0.2 0.03 260 / 4%), 0 12px 40px oklch(0.35 0.06 260 / 10%);
+  --shadow-glass:
+    0 1px 1px oklch(0.2 0.03 260 / 4%), 0 12px 40px oklch(0.35 0.06 260 / 10%);
   --shadow-lift: 0 20px 60px oklch(0.35 0.06 260 / 16%);
   --shadow-soft: 0 2px 10px oklch(0.35 0.06 260 / 8%);
 }
@@ -151,9 +152,21 @@
 /* Ambient page aura */
 @utility aura {
   background-image:
-    radial-gradient(60% 50% at 15% 0%, oklch(0.75 0.13 250 / 30%) 0%, transparent 60%),
-    radial-gradient(50% 50% at 100% 10%, oklch(0.8 0.11 200 / 28%) 0%, transparent 60%),
-    radial-gradient(60% 60% at 60% 100%, oklch(0.83 0.09 320 / 26%) 0%, transparent 65%);
+    radial-gradient(
+      60% 50% at 15% 0%,
+      oklch(0.75 0.13 250 / 30%) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      50% 50% at 100% 10%,
+      oklch(0.8 0.11 200 / 28%) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      60% 60% at 60% 100%,
+      oklch(0.83 0.09 320 / 26%) 0%,
+      transparent 65%
+    );
 }
 
 @utility btn-primary {
@@ -335,7 +348,11 @@
   padding: 0.65rem 1.35rem;
   font-weight: 600;
   font-size: 0.875rem;
-  background: linear-gradient(135deg, var(--color-primary), oklch(0.55 0.2 260));
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    oklch(0.55 0.2 260)
+  );
   color: var(--color-primary-foreground);
   box-shadow:
     0 4px 14px oklch(0.62 0.17 256 / 28%),
@@ -553,6 +570,3 @@
 .animate-soundwave-3 {
   animation: soundwave 0.8s ease-in-out 0.4s infinite;
 }
-
-
-

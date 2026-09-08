@@ -11,7 +11,11 @@ import {
   EyeOff,
   ShieldCheck,
 } from "lucide-react";
-import { auth } from "@/lib/bio";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { firebaseAuth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
 type Search = { mode?: "signup" | "login" | undefined; u?: string | undefined };
@@ -73,33 +77,20 @@ function AuthPage() {
     setBusy(true);
     try {
       if (isSignup) {
-        const { data, error } = await auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName.trim() || undefined },
-          },
-        });
-        if (error) throw error;
-        if (data.session) {
-          toast.success("Account created successfully!");
-          const desired = sessionStorage.getItem("halo:desired-username");
-          if (desired) {
-            navigate({ to: "/claim" });
-          } else {
-            navigate({ to: "/claim" });
-          }
+        await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        toast.success("Account created successfully!");
+        const desired = sessionStorage.getItem("halo:desired-username");
+        if (desired) {
+          navigate({ to: "/claim", search: { u: desired } });
+        } else {
+          navigate({ to: "/claim" });
         }
       } else {
-        const { error } = await auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
+        await signInWithEmailAndPassword(firebaseAuth, email, password);
         toast.success("Welcome back!");
         navigate({ to: "/dashboard" });
       }
-    } catch (err) {
+    } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setBusy(false);
