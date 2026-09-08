@@ -1396,40 +1396,86 @@ export async function uploadMedia(
 
   // First attempt robust server-side media upload (writes to /public/uploads and streams via /api/media)
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folder", folder);
-    formData.append("userId", userId);
+    const CHUNK_SIZE = 800 * 1024; // 800KB chunks to bypass 1MB Nginx limits safely
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      headers: {
-        "x-requested-with": "halo-app",
-      },
-      body: formData,
-    });
+    if (totalChunks > 1) {
+      // Chunked upload
+      const uploadId = `${userId}-${Date.now()}`;
+      let finalUrl = "";
 
-    if (res.ok) {
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) {
-        return data.url;
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        const formData = new FormData();
+        formData.append("file", chunk, file.name);
+        formData.append("folder", folder);
+        formData.append("userId", userId);
+        formData.append("chunkIndex", String(i));
+        formData.append("totalChunks", String(totalChunks));
+        formData.append("uploadId", uploadId);
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "x-requested-with": "halo-app" },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(
+            errData.error ||
+              `Upload failed with status ${res.status} on chunk ${i + 1}/${totalChunks}`,
+          );
+        }
+
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (data.url) {
+          finalUrl = data.url;
+        }
       }
+      if (finalUrl) return finalUrl;
     } else {
-      const errData = (await res.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (file.type.startsWith("video/")) {
-        throw new Error(
-          errData.error ||
-            `Video upload failed with status ${res.status}. Please try again.`,
-        );
+      // Single payload (file < 800KB)
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", folder);
+      formData.append("userId", userId);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "x-requested-with": "halo-app",
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (data.url) {
+          return data.url;
+        }
+      } else {
+        const errData = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
+          throw new Error(
+            errData.error ||
+              `Upload failed with status ${res.status}. Please try again.`,
+          );
+        }
       }
     }
   } catch (serverErr) {
-    if (file.type.startsWith("video/")) {
+    if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
       throw serverErr instanceof Error
         ? serverErr
-        : new Error("Failed to upload video to media server.");
+        : new Error("Failed to upload media to server.");
     }
     console.warn(
       "Direct server upload attempt failed, falling back:",

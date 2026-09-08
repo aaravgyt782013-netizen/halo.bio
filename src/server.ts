@@ -288,7 +288,7 @@ export default {
         if (url.pathname.startsWith("/api/auth/")) {
           rateLimit = 20; // auth operations
         } else if (url.pathname === "/api/upload") {
-          rateLimit = 60; // media uploads
+          rateLimit = 1200; // media uploads (high limit to support chunked uploads of large videos)
         } else if (
           url.pathname === "/api/change-password" ||
           url.pathname.startsWith("/api/admin/")
@@ -319,19 +319,90 @@ export default {
           );
         }
 
-        // --- MEDIA UPLOAD ROUTE (Supports videos up to 100MB and custom icons) ---
+        // --- MEDIA UPLOAD ROUTE (Supports chunked videos up to 100MB and custom icons) ---
         if (url.pathname === "/api/upload" && method === "POST") {
           try {
             const formData = await request.formData();
+
+            // Check for chunked upload metadata
+            const chunkIndex = formData.get("chunkIndex");
+            const totalChunks = formData.get("totalChunks");
+            const uploadId = formData.get("uploadId");
             const file = formData.get("file") as File | null;
+
             if (!file) {
               return jsonResponse({ error: "No file provided" }, 400);
             }
 
             if (file.size > 100 * 1024 * 1024) {
-              return jsonResponse({ error: "File exceeds 100MB limit" }, 413);
+              return jsonResponse(
+                { error: "File/Chunk exceeds 100MB limit" },
+                413,
+              );
             }
 
+            // Handle Chunked Upload (for bypassing 1MB proxy limits)
+            if (chunkIndex !== null && totalChunks !== null && uploadId) {
+              const cIdx = parseInt(chunkIndex as string, 10);
+              const tChunks = parseInt(totalChunks as string, 10);
+              const uId = String(uploadId).replace(/[^a-zA-Z0-9-]/g, ""); // sanitize
+
+              const tmpDir = path.join(
+                process.cwd(),
+                "public",
+                "uploads",
+                "tmp",
+              );
+              if (!fs.existsSync(tmpDir)) {
+                fs.mkdirSync(tmpDir, { recursive: true });
+              }
+
+              const chunkPath = path.join(tmpDir, `${uId}-${cIdx}`);
+              const arrayBuf = await file.arrayBuffer();
+              fs.writeFileSync(chunkPath, Buffer.from(arrayBuf));
+
+              // If this is the last chunk, stitch them all together
+              if (cIdx === tChunks - 1) {
+                const rawExt = path.extname(file.name || "").toLowerCase();
+                const ext = /^\.[a-zA-Z0-9]+$/.test(rawExt)
+                  ? rawExt
+                  : file.type.startsWith("video/")
+                    ? ".mp4"
+                    : ".bin";
+                const finalFilename = `${Date.now()}-${uId}${ext}`;
+
+                const finalDir = path.join(process.cwd(), "public", "uploads");
+                if (!fs.existsSync(finalDir)) {
+                  fs.mkdirSync(finalDir, { recursive: true });
+                }
+                const finalPath = path.join(finalDir, finalFilename);
+
+                // Assemble chunks
+                const writeStream = fs.createWriteStream(finalPath);
+                for (let i = 0; i < tChunks; i++) {
+                  const partPath = path.join(tmpDir, `${uId}-${i}`);
+                  if (fs.existsSync(partPath)) {
+                    const data = fs.readFileSync(partPath);
+                    writeStream.write(data);
+                    fs.unlinkSync(partPath); // cleanup chunk
+                  }
+                }
+                writeStream.end();
+
+                return jsonResponse({
+                  success: true,
+                  url: `/api/media/${finalFilename}`,
+                  name: file.name,
+                });
+              }
+
+              return jsonResponse({
+                success: true,
+                message: `Chunk ${cIdx} received`,
+              });
+            }
+
+            // Normal upload (single file < 1MB)
             const rawExt = path.extname(file.name || "").toLowerCase();
             const defaultExt = file.type.startsWith("video/")
               ? ".mp4"

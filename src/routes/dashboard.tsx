@@ -294,7 +294,10 @@ function Dashboard() {
             const uploadedUrl = await uploadMedia(user.id, file, "backgrounds");
             finalBgValue = uploadedUrl;
           } catch (vidErr) {
-            console.error("Auto-migrating video to media server failed:", vidErr);
+            console.error(
+              "Auto-migrating video to media server failed:",
+              vidErr,
+            );
             if (finalBgValue.length > 800 * 1024) {
               toast.error(
                 "Legacy video file exceeds database size limits. It has been reset. Please upload your video again using the new Upload button.",
