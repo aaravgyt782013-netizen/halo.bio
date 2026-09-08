@@ -1111,7 +1111,7 @@ function Dashboard() {
                         <Upload className="h-3.5 w-3.5 text-primary" />
                         <span>
                           {profile.background_type === "video"
-                            ? "Upload Background Video (Up to 100MB)"
+                            ? "Upload Background Video (Up to 1MB)"
                             : "Upload Wallpaper Image"}
                         </span>
                         <input
@@ -1135,7 +1135,7 @@ function Dashboard() {
 
                     {profile.background_type === "video" && (
                       <p className="text-[11px] text-muted-foreground">
-                        Supports uploaded videos up to 100MB with
+                        Supports uploaded videos up to 1MB with
                         high-performance streaming, direct MP4/WebM URLs,
                         YouTube loops, or curated background video clips.
                       </p>

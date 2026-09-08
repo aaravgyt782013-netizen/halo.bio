@@ -225,6 +225,15 @@ export function ProfileView({
                 onLoad={() => setVideoReady(true)}
               />
             </div>
+          ) : resolvedBgValue.toLowerCase().includes(".gif") ? (
+            <img
+              className={`h-full w-full object-cover pointer-events-none transition-opacity duration-700 ease-out ${
+                videoReady ? "opacity-100" : "opacity-0"
+              }`}
+              src={resolvedBgValue}
+              alt="Background GIF"
+              onLoad={() => setVideoReady(true)}
+            />
           ) : (
             <video
               ref={videoRef}

@@ -171,6 +171,50 @@ export function VideoPreviewPlayer({
             </span>
           </div>
         </div>
+      ) : cleanUrl.toLowerCase().includes(".gif") ? (
+        <>
+          <img
+            src={cleanUrl}
+            alt="GIF preview"
+            className={`h-full w-full object-cover transition-opacity duration-500 ${
+              isBuffered ? "opacity-100" : "opacity-0"
+            }`}
+            onLoad={() => {
+              setIsLoading(false);
+              setIsBuffered(true);
+            }}
+            onError={() => {
+              setHasError(true);
+              setIsLoading(false);
+            }}
+          />
+
+          {/* Top Status Badges */}
+          <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none z-10">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md border border-white/15">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live GIF Preview
+              </span>
+            </div>
+          </div>
+          {hasError && (
+            <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 text-center z-20">
+              <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+              <p className="text-xs font-semibold text-white">
+                GIF Load Error
+              </p>
+            </div>
+          )}
+          {isLoading && !hasError && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
+              <div className="flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs text-white backdrop-blur-md border border-white/10">
+                <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <span>Loading GIF...</span>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <video
