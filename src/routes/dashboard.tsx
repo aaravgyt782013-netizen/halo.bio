@@ -258,10 +258,26 @@ function Dashboard() {
 
   const patch = (changes: Partial<Profile>) => {
     setIsDirty(true);
-    setProfile((p) => (p ? { ...p, ...changes } : p));
+    setProfile((p) => {
+      const updated = p ? { ...p, ...changes } : p;
+      try {
+        localStorage.setItem("halo_live_profile", JSON.stringify(updated));
+        localStorage.setItem("halo_sync_tick", String(Date.now()));
+      } catch {}
+      return updated;
+    });
   };
 
-  const saveProfile = async () => {
+  useEffect(() => {
+    if (isDirty) {
+      const timer = setTimeout(() => {
+        void saveProfile(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [profile, isDirty]);
+
+  const saveProfile = async (autoSave = false) => {
     if (!profile) return;
     setSaving(true);
 
@@ -349,7 +365,9 @@ function Dashboard() {
       } else {
         setIsDirty(false);
         notifyStoreUpdated();
-        toast.success("Page updated successfully! Live page is synced.");
+        if (!autoSave) {
+          toast.success("Page updated successfully! Live page is synced.");
+        }
       }
     } catch (err) {
       setSaving(false);
@@ -376,19 +394,40 @@ function Dashboard() {
       toast.error("Could not add link");
       return;
     }
-    setLinks((l) => [...l, data as BioLink]);
+    setLinks((l) => {
+      const next = [...l, data as BioLink];
+      try {
+        localStorage.setItem("halo_live_links", JSON.stringify(next));
+        localStorage.setItem("halo_sync_tick", String(Date.now()));
+      } catch {}
+      return next;
+    });
     notifyStoreUpdated();
     toast.success("Link added");
   };
 
   const updateLink = async (id: string, changes: Partial<BioLink>) => {
-    setLinks((l) => l.map((x) => (x.id === id ? { ...x, ...changes } : x)));
+    setLinks((l) => {
+      const next = l.map((x) => (x.id === id ? { ...x, ...changes } : x));
+      try {
+        localStorage.setItem("halo_live_links", JSON.stringify(next));
+        localStorage.setItem("halo_sync_tick", String(Date.now()));
+      } catch {}
+      return next;
+    });
     await db.from("links").update(changes).eq("id", id);
     notifyStoreUpdated();
   };
 
   const removeLink = async (id: string) => {
-    setLinks((l) => l.filter((x) => x.id !== id));
+    setLinks((l) => {
+      const next = l.filter((x) => x.id !== id);
+      try {
+        localStorage.setItem("halo_live_links", JSON.stringify(next));
+        localStorage.setItem("halo_sync_tick", String(Date.now()));
+      } catch {}
+      return next;
+    });
     await db.from("links").delete().eq("id", id);
     notifyStoreUpdated();
     toast.info("Link removed");
@@ -405,6 +444,10 @@ function Dashboard() {
 
   const commitOrder = async (ordered: BioLink[]) => {
     setLinks(ordered);
+    try {
+      localStorage.setItem("halo_live_links", JSON.stringify(ordered));
+      localStorage.setItem("halo_sync_tick", String(Date.now()));
+    } catch {}
     await Promise.all(
       ordered.map((l, i) =>
         db.from("links").update({ position: i }).eq("id", l.id),
@@ -528,6 +571,16 @@ function Dashboard() {
           </div>
           <div className="absolute top-2 right-4 rounded-md bg-background/90 backdrop-blur-sm px-2 py-1 text-[10px] font-bold text-foreground border border-border shadow-sm">
             Uploading: {uploadProgress}%
+          </div>
+        </div>
+      )}
+      {saving && uploadProgress === null && (
+        <div className="fixed top-0 left-0 right-0 z-[100]">
+          <div className="h-1 w-full bg-secondary overflow-hidden">
+            <div className="h-full bg-primary animate-pulse w-full" />
+          </div>
+          <div className="absolute top-1.5 right-4 rounded-md bg-background/90 backdrop-blur-sm px-2 py-0.5 text-[10px] font-bold text-foreground border border-border shadow-sm flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 animate-spin text-primary" /> Saving...
           </div>
         </div>
       )}

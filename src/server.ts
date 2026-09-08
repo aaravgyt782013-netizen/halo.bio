@@ -255,15 +255,15 @@ export default {
           });
         }
 
-        // 1. Request Body Size Guard (1MB for /api/upload, 4.5MB for JSON payloads)
+        // 1. Request Body Size Guard (15MB for /api/upload to allow audio, 4.5MB for JSON payloads)
         const isUpload = url.pathname === "/api/upload";
-        const maxLimit = isUpload ? 1 * 1024 * 1024 : 4.5 * 1024 * 1024;
+        const maxLimit = isUpload ? 15 * 1024 * 1024 : 4.5 * 1024 * 1024;
         const contentLength = request.headers.get("content-length");
         if (contentLength && parseInt(contentLength, 10) > maxLimit) {
           return jsonResponse(
             {
               error: isUpload
-                ? "File exceeds the 1MB upload limit."
+                ? "File exceeds the 15MB upload limit."
                 : "Payload too large. Please use a smaller file or compressed image.",
             },
             413,
@@ -328,8 +328,11 @@ export default {
               return jsonResponse({ error: "No file provided" }, 400);
             }
 
-            if (file.size > 1 * 1024 * 1024) {
-              return jsonResponse({ error: "File exceeds 1MB limit" }, 413);
+            if (file.type.startsWith("video/") && file.size > 1 * 1024 * 1024) {
+              return jsonResponse({ error: "Video exceeds 1MB limit" }, 413);
+            }
+            if (file.size > 15 * 1024 * 1024) {
+              return jsonResponse({ error: "File exceeds 15MB limit" }, 413);
             }
 
             const rawExt = path.extname(file.name || "").toLowerCase();

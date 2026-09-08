@@ -50,6 +50,21 @@ function PublicProfile() {
   // Real-time synchronization: listen for dashboard edits or cross-tab updates
   useEffect(() => {
     const syncFresh = () => {
+      try {
+        const localProfile = localStorage.getItem("halo_live_profile");
+        const localLinks = localStorage.getItem("halo_live_links");
+        
+        if (localProfile) {
+          const parsed = JSON.parse(localProfile);
+          if (parsed.username === profile.username) {
+            setProfile(parsed);
+          }
+        }
+        if (localLinks) {
+          setLinks(JSON.parse(localLinks));
+        }
+      } catch {}
+
       void fetchProfileByUsername(profile.username).then((fresh) => {
         if (fresh && fresh.profile) {
           setProfile(fresh.profile);
@@ -61,6 +76,9 @@ function PublicProfile() {
     window.addEventListener("halo-store-updated", syncFresh);
     window.addEventListener("storage", syncFresh);
     window.addEventListener("focus", syncFresh);
+
+    // Run once on mount to catch any unsaved changes if they exist in localStorage
+    syncFresh();
 
     return () => {
       window.removeEventListener("halo-store-updated", syncFresh);
