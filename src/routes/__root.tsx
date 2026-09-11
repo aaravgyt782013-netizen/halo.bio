@@ -55,9 +55,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Halo — Media-rich link in bio pages" },
+      { title: "SpiderWensors — Media-rich link in bio pages" },
       { name: "description", content: "Build a premium link-in-bio page with video backgrounds, auto-play music and frosted glass styling." },
-      { property: "og:title", content: "Halo — Media-rich link in bio pages" },
+      { property: "og:title", content: "SpiderWensors — Media-rich link in bio pages" },
       { property: "og:description", content: "Build a premium link-in-bio page with video backgrounds, auto-play music and frosted glass styling." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
