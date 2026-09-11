@@ -45,36 +45,36 @@ export function CuratedThemesPanel({ onThemeSaved }: Props) {
     };
   }, []);
 
-  const previewStyle = useMemo(() => {
-    const theme = selected;
-    return {
-      background:
-        theme.card.mode === "solid"
-          ? theme.card.background
-          : theme.card.mode === "gradient"
-            ? theme.card.background
-            : theme.card.background,
-      borderColor: theme.card.border,
-      color: theme.text.primary,
-    };
-  }, [selected]);
+  const previewStyle = useMemo(() => ({
+    background: selected.card.background,
+    borderColor: selected.card.border,
+    color: selected.text.primary,
+  }), [selected]);
+
+  const previewImmediately = (theme: ProfileTheme) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("halo-theme-preview", { detail: theme }));
+    }
+  };
 
   const persist = async (theme: ProfileTheme) => {
     if (!profile) {
       toast.error("Your profile is still loading");
       return;
     }
+
+    previewImmediately(theme);
     setSaving(true);
     const payload = { theme } as unknown as Partial<Profile>;
     const { error } = await db.from("profiles").update(payload).eq("id", profile.id);
     setSaving(false);
+
     if (error) {
       toast.error(`Could not save theme: ${error.message}`);
       return;
     }
-    setProfile((current) =>
-      current ? ({ ...current, theme } as Profile) : current,
-    );
+
+    setProfile((current) => current ? ({ ...current, theme } as Profile) : current);
     onThemeSaved?.(theme);
     toast.success(`${theme.name} applied`);
   };
@@ -127,50 +127,29 @@ export function CuratedThemesPanel({ onThemeSaved }: Props) {
               onClick={() => void applyPreset(theme)}
               disabled={saving}
               className={`group relative overflow-hidden rounded-xl border p-2 text-left transition-all active:scale-[0.98] ${
-                active
-                  ? "border-primary ring-2 ring-primary/20"
-                  : "border-border/80 hover:border-primary/50"
+                active ? "border-primary ring-2 ring-primary/20" : "border-border/80 hover:border-primary/50"
               }`}
             >
               <div
                 className="h-16 rounded-lg border"
-                style={{
-                  background: theme.card.background,
-                  borderColor: theme.card.border,
-                }}
+                style={{ background: theme.card.background, borderColor: theme.card.border }}
               >
-                <div
-                  className="m-2 h-2 w-2 rounded-full"
-                  style={{ backgroundColor: theme.accent }}
-                />
+                <div className="m-2 h-2 w-2 rounded-full" style={{ backgroundColor: theme.accent }} />
                 <div className="mx-2 mt-5 h-1.5 w-2/3 rounded-full" style={{ backgroundColor: theme.text.primary, opacity: 0.85 }} />
                 <div className="mx-2 mt-1 h-1 w-1/2 rounded-full" style={{ backgroundColor: theme.text.secondary, opacity: 0.7 }} />
               </div>
-              <span className="mt-1.5 block truncate text-[10px] font-semibold text-foreground">
-                {theme.name}
-              </span>
-              {active && (
-                <span className="absolute right-2 top-2 rounded-full bg-primary p-1 text-primary-foreground shadow">
-                  <Check className="h-3 w-3" />
-                </span>
-              )}
+              <span className="mt-1.5 block truncate text-[10px] font-semibold text-foreground">{theme.name}</span>
+              {active && <span className="absolute right-2 top-2 rounded-full bg-primary p-1 text-primary-foreground shadow"><Check className="h-3 w-3" /></span>}
             </button>
           );
         })}
       </div>
 
-      <div
-        className="rounded-xl border p-4 transition-colors"
-        style={previewStyle}
-      >
+      <div className="rounded-xl border p-4 transition-colors" style={previewStyle}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold" style={{ color: selected.text.primary }}>
-              {selected.name}
-            </p>
-            <p className="mt-1 text-[10px]" style={{ color: selected.text.secondary }}>
-              Live theme preview
-            </p>
+            <p className="text-xs font-bold" style={{ color: selected.text.primary }}>{selected.name}</p>
+            <p className="mt-1 text-[10px]" style={{ color: selected.text.secondary }}>Live theme preview</p>
           </div>
           <div className="h-8 w-8 rounded-full" style={{ backgroundColor: selected.accent }} />
         </div>
@@ -178,13 +157,9 @@ export function CuratedThemesPanel({ onThemeSaved }: Props) {
 
       {customize && (
         <div className="space-y-3 rounded-xl border border-border/80 bg-card/60 p-3">
-          <div className="flex items-center gap-1.5">
-            <Palette className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold">Manual colors</span>
-          </div>
+          <div className="flex items-center gap-1.5"><Palette className="h-3.5 w-3.5 text-primary" /><span className="text-xs font-bold">Manual colors</span></div>
           <p className="text-[10px] text-muted-foreground">
-            These values start from the selected preset. Customizing does not
-            remove the preset; it turns it into your own variant.
+            These values start from the selected preset. Customizing does not remove the preset; it turns it into your own variant.
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -200,17 +175,8 @@ export function CuratedThemesPanel({ onThemeSaved }: Props) {
               <label key={label} className="block">
                 <span className="mb-1 block text-[10px] font-semibold text-muted-foreground">{label}</span>
                 <div className="flex gap-2">
-                  <input
-                    type="color"
-                    value={isHex(value) ? value : "#6366f1"}
-                    onChange={(event) => update(event.target.value)}
-                    className="h-9 w-10 cursor-pointer rounded border border-border bg-transparent p-1"
-                  />
-                  <input
-                    value={value}
-                    onChange={(event) => update(event.target.value)}
-                    className="field min-w-0 flex-1 font-mono text-[11px]"
-                  />
+                  <input type="color" value={isHex(value) ? value : "#6366f1"} onChange={(event) => update(event.target.value)} className="h-9 w-10 cursor-pointer rounded border border-border bg-transparent p-1" />
+                  <input value={value} onChange={(event) => update(event.target.value)} className="field min-w-0 flex-1 font-mono text-[11px]" />
                 </div>
               </label>
             ))}
@@ -218,8 +184,7 @@ export function CuratedThemesPanel({ onThemeSaved }: Props) {
 
           <div className="flex items-center gap-2 rounded-lg bg-secondary/60 p-2.5 text-[10px] text-muted-foreground">
             <Lock className="h-3.5 w-3.5 shrink-0" />
-            Theme writes go through the existing authenticated profile sync,
-            so another user cannot update your profile by changing the client ID.
+            Theme writes go through the existing authenticated profile sync, so another user cannot update your profile by changing the client ID.
           </div>
         </div>
       )}
