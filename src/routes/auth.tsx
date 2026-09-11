@@ -23,17 +23,17 @@ export const Route = createFileRoute("/auth")({
   }),
   head: () => ({
     meta: [
-      { title: "Sign in — Halo bio pages" },
+      { title: "Sign in — SpiderWensors bio pages" },
       {
         name: "description",
         content:
-          "Log in or create a Halo account to build your media-rich link-in-bio page.",
+          "Log in or create a SpiderWensors account to build your media-rich link-in-bio page.",
       },
-      { property: "og:title", content: "Sign in — Halo bio pages" },
+      { property: "og:title", content: "Sign in — SpiderWensors bio pages" },
       {
         property: "og:description",
         content:
-          "Create your Halo account with email & password and claim your username.",
+          "Create your SpiderWensors account with email & password and claim your username.",
       },
     ],
   }),
@@ -135,7 +135,6 @@ function AuthPage() {
           </div>
         </div>
 
-        {/* Mode switcher tabs */}
         <div className="mb-6 flex rounded-xl bg-secondary/80 p-1">
           <button
             type="button"
