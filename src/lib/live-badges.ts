@@ -1,19 +1,7 @@
-import { Activity, BadgeCheck, Code2, Crown, Gamepad2, Github, Heart, Music2, Sparkles, Star, Twitch, Youtube, Zap } from "lucide-react";
+import { Activity, BadgeCheck, Code2, Crown, Gamepad2, Github, Music2, Sparkles, Star, Twitch, Youtube, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type LiveBadgeId =
-  | "verified"
-  | "premium"
-  | "creator"
-  | "developer"
-  | "gamer"
-  | "discord"
-  | "youtube"
-  | "github"
-  | "twitch"
-  | "music"
-  | "early-supporter"
-  | "live";
+export type LiveBadgeId = "verified" | "premium" | "creator" | "developer" | "gamer" | "discord" | "youtube" | "github" | "twitch" | "music" | "early-supporter" | "live";
 
 export type LiveBadge = {
   id: LiveBadgeId;
@@ -57,19 +45,11 @@ export function badgeFor(id: LiveBadgeId, badges: LiveBadge[]) {
   return badges.find((badge) => badge.id === id);
 }
 
-export function getEffectiveLiveBadges(
-  badges: LiveBadge[],
-  profile: { is_premium?: boolean; social_links?: Array<{ platform?: string; active?: boolean }> },
-): LiveBadge[] {
+export function getEffectiveLiveBadges(badges: LiveBadge[], profile: { is_premium?: boolean }): LiveBadge[] {
   const result = [...normalizeLiveBadges(badges)];
-  const has = (id: LiveBadgeId) => result.some((badge) => badge.id === id && badge.enabled);
-  const add = (id: LiveBadgeId) => {
-    if (has(id)) return;
-    const definition = LIVE_BADGE_DEFINITIONS.find((item) => item.id === id);
-    if (!definition) return;
-    result.push({ id, label: definition.label, enabled: true, animated: definition.animated, color: definition.color });
-  };
-
-  if (profile.is_premium) add("premium");
+  if (profile.is_premium && !result.some((badge) => badge.id === "premium" && badge.enabled)) {
+    const definition = LIVE_BADGE_DEFINITIONS.find((item) => item.id === "premium");
+    if (definition) result.push({ id: "premium", label: definition.label, enabled: true, color: definition.color });
+  }
   return result.filter((badge) => badge.enabled);
 }
