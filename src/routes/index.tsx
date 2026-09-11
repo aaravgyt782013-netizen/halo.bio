@@ -13,13 +13,13 @@ import { normalizeUsername } from "@/lib/bio";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Halo — Media-rich link in bio pages" },
+      { title: "SpiderWensors — Media-rich link in bio pages" },
       {
         name: "description",
         content:
           "Build a premium link-in-bio page with video backgrounds, auto-play music, frosted glass cards and a live preview builder.",
       },
-      { property: "og:title", content: "Halo — Media-rich link in bio pages" },
+      { property: "og:title", content: "SpiderWensors — Media-rich link in bio pages" },
       {
         property: "og:description",
         content:
@@ -62,7 +62,7 @@ function Landing() {
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
         <span className="font-display text-lg font-bold tracking-tight">
-          halo.bio
+          SpiderWensors
         </span>
         <nav className="flex items-center gap-2">
           <Link to="/auth" className="btn-ghost">
@@ -104,7 +104,7 @@ function Landing() {
             }}
           >
             <span className="text-sm font-semibold text-muted-foreground">
-              halo.bio/
+              SpiderWensors/
             </span>
             <input
               value={username}
@@ -158,7 +158,7 @@ function Landing() {
       </main>
 
       <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} halo.bio — made for creators
+        © {new Date().getFullYear()} SpiderWensors — made for creators
       </footer>
     </div>
   );
