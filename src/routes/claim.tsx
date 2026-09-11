@@ -8,16 +8,16 @@ import { useAuth, useMyProfile } from "@/hooks/useAuth";
 export const Route = createFileRoute("/claim")({
   head: () => ({
     meta: [
-      { title: "Claim your username — Halo" },
+      { title: "Claim your username — SpiderWensors" },
       {
         name: "description",
-        content: "Pick the handle that becomes your public Halo bio page URL.",
+        content: "Pick the handle that becomes your public SpiderWensors bio page URL.",
       },
-      { property: "og:title", content: "Claim your username — Halo" },
+      { property: "og:title", content: "Claim your username — SpiderWensors" },
       {
         property: "og:description",
         content:
-          "Check availability in real time and lock in your Halo bio page handle.",
+          "Check availability in real time and lock in your SpiderWensors bio page handle.",
       },
     ],
   }),
@@ -84,7 +84,7 @@ function ClaimPage() {
       return;
     }
     sessionStorage.removeItem("halo:desired-username");
-    toast.success(`halo.bio/${value} is now reserved exclusively for you!`);
+    toast.success(`SpiderWensors/${value} is now reserved exclusively for you!`);
     navigate({ to: "/dashboard" });
   };
 
@@ -102,11 +102,11 @@ function ClaimPage() {
       <div className="glass-panel w-full max-w-md animate-float-in p-8">
         <h1 className="font-display text-2xl font-bold">Claim your username</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          This becomes your permanent public page: halo.bio/username
+          This becomes your permanent public page: SpiderWensors/username
         </p>
 
         <div className="mt-6 flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2.5">
-          <span className="text-sm text-muted-foreground">halo.bio/</span>
+          <span className="text-sm text-muted-foreground">SpiderWensors/</span>
           <input
             autoFocus
             value={value}
