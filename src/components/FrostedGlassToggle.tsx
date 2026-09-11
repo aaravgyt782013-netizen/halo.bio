@@ -1,41 +1,24 @@
 import { Sparkles, Layers, Sliders, Shield } from "lucide-react";
 import type { GlassIntensity } from "@/lib/bio";
+import { CuratedThemesPanel } from "@/components/CuratedThemesPanel";
+import { LiveBadgesPanel } from "@/components/LiveBadgesPanel";
 import { ProfileDecorationsPanel } from "@/components/ProfileDecorationsPanel";
 
-type Props = {
-  intensity: GlassIntensity;
-  currentOpacity: number;
-  currentBlur: number;
-  onChange: (preset: {
-    intensity: GlassIntensity;
-    opacity: number;
-    blur: number;
-  }) => void;
-};
-
-interface PresetDefinition {
-  id: GlassIntensity;
-  label: string;
-  tagline: string;
-  opacity: number;
-  blur: number;
-  icon: typeof Sparkles;
-  previewBg: string;
-}
-
+type Props = { intensity: GlassIntensity; currentOpacity: number; currentBlur: number; onChange: (preset: { intensity: GlassIntensity; opacity: number; blur: number }) => void };
+interface PresetDefinition { id: GlassIntensity; label: string; tagline: string; opacity: number; blur: number; icon: typeof Sparkles; previewBg: string; }
 const GLASS_PRESETS: PresetDefinition[] = [
   { id: "subtle", label: "Subtle", tagline: "High clarity, soft sheen", opacity: 0.28, blur: 8, icon: Sparkles, previewBg: "rgba(255, 255, 255, 0.22)" },
   { id: "medium", label: "Medium", tagline: "Classic frosted acrylic", opacity: 0.52, blur: 18, icon: Layers, previewBg: "rgba(255, 255, 255, 0.48)" },
   { id: "heavy", label: "Heavy", tagline: "Deep velvety milk glass", opacity: 0.74, blur: 30, icon: Sliders, previewBg: "rgba(255, 255, 255, 0.72)" },
   { id: "ultra", label: "Ultra", tagline: "Crystallized dense acrylic", opacity: 0.88, blur: 44, icon: Shield, previewBg: "rgba(255, 255, 255, 0.90)" },
 ];
-
 export function FrostedGlassToggle({ intensity = "medium", currentOpacity, currentBlur, onChange }: Props) {
   const matchedPreset = GLASS_PRESETS.find((p) => p.id === intensity || (Math.abs(p.opacity - currentOpacity) < 0.05 && Math.abs(p.blur - currentBlur) <= 3));
   const activeId = intensity || matchedPreset?.id || "medium";
-
   return (
     <div className="space-y-5 w-full min-w-0">
+      <CuratedThemesPanel />
+      <LiveBadgesPanel />
       <ProfileDecorationsPanel />
       <div className="border-t border-border/60 pt-4 space-y-2.5">
         <div className="flex items-center justify-between">
