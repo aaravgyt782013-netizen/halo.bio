@@ -43,7 +43,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { mode, u } = Route.useSearch();
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   const [isSignup, setIsSignup] = useState(mode === "signup");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -51,12 +51,23 @@ function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Do not auto-navigate while a submit is already navigating. Previously the
+  // SIGNED_IN auth event could race the explicit signup -> /claim navigation,
+  // producing an intermittent TanStack Router error page.
   useEffect(() => {
-    if (session) navigate({ to: "/dashboard" });
-  }, [session, navigate]);
+    if (session && !loading && !busy) {
+      navigate({ to: isSignup ? "/claim" : "/dashboard" });
+    }
+  }, [session, loading, busy, isSignup, navigate]);
 
   useEffect(() => {
-    if (u) sessionStorage.setItem("halo:desired-username", u);
+    if (u && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("halo:desired-username", u);
+      } catch {
+        // Continue without sessionStorage in restricted/private browser modes.
+      }
+    }
   }, [u]);
 
   const submit = async (e: React.FormEvent) => {
@@ -81,15 +92,12 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        if (data.session) {
-          toast.success("Account created successfully!");
-          const desired = sessionStorage.getItem("halo:desired-username");
-          if (desired) {
-            navigate({ to: "/claim" });
-          } else {
-            navigate({ to: "/claim" });
-          }
+        if (!data.session) {
+          throw new Error("Account was created, but no session was returned. Please log in.");
         }
+
+        toast.success("Account created successfully!");
+        navigate({ to: "/claim" });
       } else {
         const { error } = await auth.signInWithPassword({
           email,
