@@ -15,6 +15,8 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
       return text === "Media & FX" && el.parentElement?.textContent?.includes("Appearance") && el.parentElement?.textContent?.includes("Social Icons");
     })?.parentElement;
     if (!tabBar) return;
+    tabBar.classList.remove("sm:grid-cols-4");
+    tabBar.classList.add("sm:grid-cols-5");
     const b = document.createElement("button");
     b.type = "button";
     b.className = "inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-semibold transition-all min-w-0 truncate text-muted-foreground hover:text-foreground";
@@ -45,7 +47,7 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
     const otherTabs = Array.from(tabBar.querySelectorAll("button")).filter((x) => x !== b);
     otherTabs.forEach((x) => x.addEventListener("click", hide));
     setMount(content); setButton(b);
-    return () => { b.removeEventListener("click", show); otherTabs.forEach((x) => x.removeEventListener("click", hide)); b.remove(); content.remove(); };
+    return () => { b.removeEventListener("click", show); otherTabs.forEach((x) => x.removeEventListener("click", hide)); b.remove(); content.remove(); tabBar.classList.remove("sm:grid-cols-5"); tabBar.classList.add("sm:grid-cols-4"); };
   }, []);
 
   if (!mount || !button) return null;
