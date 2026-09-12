@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Award } from "lucide-react";
 import type { Profile } from "@/lib/bio";
 import { BadgesEditor } from "@/components/BadgesEditor";
 
@@ -16,21 +15,17 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
       return text === "Media & FX" && el.parentElement?.textContent?.includes("Appearance") && el.parentElement?.textContent?.includes("Social Icons");
     })?.parentElement;
     if (!tabBar) return;
-
     const b = document.createElement("button");
     b.type = "button";
     b.className = "inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-semibold transition-all min-w-0 truncate text-muted-foreground hover:text-foreground";
-    b.innerHTML = '<span class="dashboard-badges-icon"></span><span class="truncate">Badges</span>';
-    const iconHost = b.querySelector(".dashboard-badges-icon");
-    if (iconHost) iconHost.appendChild(document.createElement("span"));
+    b.innerHTML = '<span class="text-sm leading-none">🏅</span><span class="truncate">Badges</span>';
     tabBar.appendChild(b);
 
     const content = document.createElement("div");
     content.className = "dashboard-badges-content hidden";
     const parent = tabBar.parentElement;
-    if (!parent) return;
+    if (!parent) { b.remove(); return; }
     parent.appendChild(content);
-
     const originals = Array.from(parent.children).filter((el) => el !== tabBar && el !== content) as HTMLElement[];
     const show = () => {
       setActive(true);
