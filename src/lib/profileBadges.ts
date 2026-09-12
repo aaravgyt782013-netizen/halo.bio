@@ -7,6 +7,7 @@ export type ProfileBadge = {
   icon: string;
   color: string;
   emoji?: string;
+  imageUrl?: string;
   glowColor?: string;
 };
 
