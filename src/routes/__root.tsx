@@ -14,31 +14,58 @@ import themeCss from "../theme.css?url";
 import spiderBrandCss from "../spider-brand.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
-const RECOVERY_KEY = "spider:route-recovery-attempt";
+const RECOVERY_KEY = "spider:route-recovery-attempts";
+const RECOVERY_PARAM = "__spider_refresh";
+const MAX_RECOVERY_ATTEMPTS = 2;
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error instanceof Response) return `Response ${error.status} ${error.url}`;
+  return String(error);
+}
 
 function isRecoverableChunkError(error: unknown) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : error instanceof Response
-        ? `Response ${error.status} ${error.url}`
-        : String(error);
-
-  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module|Failed to fetch module/i.test(
+  const message = errorMessage(error);
+  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module|Failed to fetch module|module script|Loading CSS chunk|Failed to fetch|NetworkError|Load failed/i.test(
     message,
   );
 }
 
-function recoverFromStaleDeployment() {
+function getRecoveryAttempts() {
+  if (typeof window === "undefined") return 0;
+  try {
+    const value = Number(sessionStorage.getItem(RECOVERY_KEY) ?? "0");
+    return Number.isFinite(value) && value >= 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function clearRecoveryState() {
   if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(RECOVERY_KEY);
+  } catch {
+    // Some privacy modes can block sessionStorage; recovery still works below.
+  }
+}
 
-  const alreadyRecovered = sessionStorage.getItem(RECOVERY_KEY) === "1";
-  if (alreadyRecovered) return;
+function recoverFromProductionLoadError() {
+  if (typeof window === "undefined") return false;
 
-  sessionStorage.setItem(RECOVERY_KEY, "1");
+  const attempts = getRecoveryAttempts();
+  if (attempts >= MAX_RECOVERY_ATTEMPTS) return false;
+
+  try {
+    sessionStorage.setItem(RECOVERY_KEY, String(attempts + 1));
+  } catch {
+    // Continue with a cache-busting navigation even when storage is unavailable.
+  }
+
   const url = new URL(window.location.href);
-  url.searchParams.set("__spider_refresh", String(Date.now()));
+  url.searchParams.set(RECOVERY_PARAM, `${Date.now()}-${attempts + 1}`);
   window.location.replace(url.toString());
+  return true;
 }
 
 function NotFoundComponent() {
@@ -69,25 +96,31 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
 
     if (isRecoverableChunkError(error)) {
-      recoverFromStaleDeployment();
+      recoverFromProductionLoadError();
     }
   }, [error]);
+
+  const retrying = isRecoverableChunkError(error) && getRecoveryAttempts() < MAX_RECOVERY_ATTEMPTS;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          {retrying ? "Loading Spider Website…" : "This page didn't load"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong while loading this page. Try a fresh reload or head back home.
+          {retrying
+            ? "Refreshing the page with the latest production files."
+            : "Something went wrong while loading this page. Try a fresh reload or head back home."}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
+              clearRecoveryState();
               if (typeof window !== "undefined") {
-                sessionStorage.removeItem(RECOVERY_KEY);
-                recoverFromStaleDeployment();
+                const url = new URL(window.location.href);
+                url.searchParams.set(RECOVERY_PARAM, `${Date.now()}-manual`);
+                window.location.replace(url.toString());
               } else {
                 reset();
               }
@@ -98,9 +131,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           </button>
           <Link
             to="/"
-            onClick={() => {
-              if (typeof window !== "undefined") sessionStorage.removeItem(RECOVERY_KEY);
-            }}
+            onClick={clearRecoveryState}
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Go home
@@ -172,24 +203,22 @@ function RootComponent() {
 
     const handleError = (event: ErrorEvent) => {
       if (isRecoverableChunkError(event.error ?? event.message)) {
-        recoverFromStaleDeployment();
+        recoverFromProductionLoadError();
       }
     };
 
     const handleRejection = (event: PromiseRejectionEvent) => {
       if (isRecoverableChunkError(event.reason)) {
-        recoverFromStaleDeployment();
+        recoverFromProductionLoadError();
       }
     };
 
     window.addEventListener("error", handleError);
     window.addEventListener("unhandledrejection", handleRejection);
 
-    // Don't immediately clear the recovery marker. Keep it through the first
-    // stable session so a delayed route-chunk failure can still self-heal.
     const timer = window.setTimeout(() => {
-      sessionStorage.removeItem(RECOVERY_KEY);
-    }, 15000);
+      clearRecoveryState();
+    }, 30000);
 
     return () => {
       window.removeEventListener("error", handleError);
