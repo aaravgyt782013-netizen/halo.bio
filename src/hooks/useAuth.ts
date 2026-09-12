@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { auth, db, type Profile, type AuthSession } from "@/lib/bio";
 
+export const OWNER_EMAIL = "aaravg78201333@gmail.com";
+
 export function useAuth() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,27 +49,19 @@ export function useMyProfile(userId: string | undefined) {
     };
 
     loadProfile();
-
-    const handleUpdate = () => {
-      loadProfile();
-    };
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("halo-store-updated", handleUpdate);
-    }
+    const handleUpdate = () => loadProfile();
+    if (typeof window !== "undefined") window.addEventListener("halo-store-updated", handleUpdate);
 
     return () => {
       cancelled = true;
-      if (typeof window !== "undefined") {
-        window.removeEventListener("halo-store-updated", handleUpdate);
-      }
+      if (typeof window !== "undefined") window.removeEventListener("halo-store-updated", handleUpdate);
     };
   }, [userId]);
 
   return { profile, setProfile, loading };
 }
 
-export function useIsAdmin(userId: string | undefined) {
+export function useIsAdmin(userId: string | undefined, email?: string | null) {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -75,6 +69,12 @@ export function useIsAdmin(userId: string | undefined) {
       setIsAdmin(null);
       return;
     }
+
+    if ((email ?? "").toLowerCase() === OWNER_EMAIL) {
+      setIsAdmin(true);
+      return;
+    }
+
     let cancelled = false;
     db.from("user_roles")
       .select("role")
@@ -84,10 +84,11 @@ export function useIsAdmin(userId: string | undefined) {
       .then(({ data }: { data: { role: string } | null }) => {
         if (!cancelled) setIsAdmin(!!data);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, email]);
 
   return isAdmin;
 }
