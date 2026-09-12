@@ -1,6 +1,4 @@
-/* Spider Website global visual contract.
- * Keep branding and core app colors consistent across every route.
- */
+/* Spider Website global visual contract. */
 :root,
 .dark {
   --background: oklch(0.12 0.015 265);
@@ -33,19 +31,26 @@ body {
   color: #f7f7f7 !important;
 }
 
-/* Always render the product name exactly as requested. */
 .spider-brand {
   color: #ef4444 !important;
 }
 
-/* The dashboard's legacy home link still contains halo.bio in its text.
- * Replace that visual label without changing its navigation target. */
+/* Replace the legacy dashboard text label while keeping its / navigation. */
 header a[href="/"].font-display {
   font-size: 0 !important;
+  color: #f7f7f7 !important;
+  white-space: nowrap;
 }
-
+header a[href="/"].font-display::before {
+  content: "Spider";
+  font-size: 1.125rem;
+  color: #ef4444;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
 header a[href="/"].font-display::after {
-  content: "Spider Website";
+  content: " Website";
   font-size: 1.125rem;
   color: #f7f7f7;
   font-family: var(--font-display);
@@ -53,28 +58,16 @@ header a[href="/"].font-display::after {
   letter-spacing: -0.02em;
 }
 
-header a[href="/"].font-display::after::first-letter {
-  color: #ef4444;
-}
-
-/* Explicit dashboard fallback: the first word is red. */
-header a[href="/"].font-display {
-  color: #ef4444 !important;
-}
-
-/* Make the main action system red instead of the old blue primary token. */
 .btn-primary,
 .btn-liquid {
   background-color: #ef4444 !important;
 }
 
-/* Keep focus rings aligned with Spider red. */
 .field:focus {
   border-color: rgb(239 68 68 / 60%) !important;
   box-shadow: 0 0 0 4px rgb(239 68 68 / 14%) !important;
 }
 
-/* Prevent old light-mode surfaces from flashing while the app hydrates. */
 .glass,
 .glass-panel,
 .surface {
