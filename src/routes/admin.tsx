@@ -27,9 +27,9 @@ import { AdminBadgeManager } from "@/components/AdminBadgeManager";
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Staff portal — Spider Website" },
-      { name: "description", content: "Spider Website staff portal for user management, moderation and badges." },
-      { property: "og:title", content: "Staff portal — Spider Website" },
+      { title: "Staff portal — Spider Wensors" },
+      { name: "description", content: "Spider Wensors staff portal for user management, moderation and badges." },
+      { property: "og:title", content: "Staff portal — Spider Wensors" },
       { property: "og:description", content: "Manage users, premium tiers, moderation and profile badges." },
       { name: "robots", content: "noindex" },
     ],
@@ -40,6 +40,31 @@ export const Route = createFileRoute("/admin")({
 type Stats = { total_profiles: number; active_profiles: number; total_views: number; total_clicks: number; total_links: number };
 type FilterCategory = "all" | "flagged" | "pro" | "banned";
 type PasswordTarget = Profile;
+
+const ADMIN_CSRF = { "X-Requested-With": "halo-app" };
+
+async function adminProfileMutation(targetUserId: string, changes: Partial<Profile>) {
+  const res = await fetch("/api/admin/profile-mutate", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...ADMIN_CSRF },
+    credentials: "include",
+    body: JSON.stringify({ targetUserId, changes }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  if (!res.ok || !data.success) throw new Error(data.error || "Admin change failed");
+  return data;
+}
+
+async function adminDeleteProfile(targetUserId: string) {
+  const res = await fetch("/api/admin/delete-profile", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...ADMIN_CSRF },
+    credentials: "include",
+    body: JSON.stringify({ targetUserId }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  if (!res.ok || !data.success) throw new Error(data.error || "Could not delete profile");
+}
 
 function AdminPage() {
   const navigate = useNavigate();
@@ -72,17 +97,28 @@ function AdminPage() {
   useEffect(() => { if (isAdmin) void load(); if (isAdmin === false) setBusy(false); }, [isAdmin, load]);
 
   const mutate = async (id: string, changes: Partial<Profile>, message: string) => {
+    const previous = profiles;
     setProfiles((p) => p.map((x) => (x.id === id ? { ...x, ...changes } : x)));
-    const { error } = await db.from("profiles").update(changes).eq("id", id);
-    if (error) toast.error("Action failed"); else toast.success(message);
+    try {
+      await adminProfileMutation(id, changes);
+      toast.success(message);
+      window.dispatchEvent(new Event("halo-store-updated"));
+    } catch (error) {
+      setProfiles(previous);
+      toast.error(error instanceof Error ? error.message : "Action failed");
+    }
   };
 
   const removeProfile = async (id: string) => {
-    const { error } = await db.from("profiles").delete().eq("id", id);
-    if (error) { toast.error("Could not delete profile"); return; }
-    setProfiles((p) => p.filter((x) => x.id !== id));
-    setProfileToDelete(null);
-    toast.success("Profile permanently deleted");
+    try {
+      await adminDeleteProfile(id);
+      setProfiles((p) => p.filter((x) => x.id !== id));
+      setProfileToDelete(null);
+      toast.success("Profile permanently deleted");
+      window.dispatchEvent(new Event("halo-store-updated"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete profile");
+    }
   };
 
   const openPasswordModal = (profile: Profile) => {
@@ -106,7 +142,7 @@ function AdminPage() {
     if (newPassword.length > 128) return toast.error("Password must be 128 characters or less");
     setPasswordBusy(true);
     try {
-      const res = await fetch("/api/admin/profile-mutate", { method: "POST", headers: { "content-type": "application/json", "X-Requested-With": "halo-app" }, credentials: "include", body: JSON.stringify({ targetUserId: passwordTarget.id, changes: { __adminPassword: { email, password: newPassword } } }) });
+      const res = await fetch("/api/admin/profile-mutate", { method: "POST", headers: { "content-type": "application/json", ...ADMIN_CSRF }, credentials: "include", body: JSON.stringify({ targetUserId: passwordTarget.id, changes: { __adminPassword: { email, password: newPassword } } }) });
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
       if (!res.ok || !data.success) { toast.error(data.error || "Could not change member password"); return; }
       toast.success(`Password changed for @${passwordTarget.username ?? passwordTarget.display_name ?? "member"}`);
@@ -121,7 +157,7 @@ function AdminPage() {
   };
 
   if (loading || isAdmin === null || busy) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
-  if (!isAdmin) return <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-5 text-center"><h1 className="font-display text-2xl font-bold">Staff only</h1><p className="max-w-sm text-muted-foreground">This portal is restricted to Spider Website staff accounts.</p><Link to="/dashboard" className="btn-primary">Back to builder</Link></div>;
+  if (!isAdmin) return <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-5 text-center"><h1 className="font-display text-2xl font-bold">Staff only</h1><p className="max-w-sm text-muted-foreground">This portal is restricted to Spider Wensors staff accounts.</p><Link to="/dashboard" className="btn-primary">Back to builder</Link></div>;
 
   const flaggedCount = profiles.filter((p) => p.is_flagged).length;
   const proCount = profiles.filter((p) => p.is_premium).length;
@@ -147,7 +183,7 @@ function AdminPage() {
           {filtered.map((p) => <div key={p.id} className="surface flex flex-wrap items-center gap-3 rounded-xl border border-border/70 p-3.5">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-secondary">{p.avatar_url ? <img src={p.avatar_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">{(p.display_name ?? p.username ?? "?").slice(0, 1).toUpperCase()}</div>}</div>
             <div className="min-w-40 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold">{p.username ? `@${p.username}` : "— no username —"}</span>{p.is_premium && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">PRO</span>}{p.is_banned && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">BANNED</span>}{p.is_flagged && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">FLAGGED</span>}</div><p className="mt-0.5 text-xs text-muted-foreground">{p.display_name ?? "unnamed"} · {p.views || 0} views</p><div className="mt-1 flex flex-wrap items-center gap-3"><button type="button" onClick={() => openBadgeManager(p)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300"><Award className="h-3 w-3" /> Manage badges</button><button type="button" onClick={() => openPasswordModal(p)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:opacity-80"><KeyRound className="h-3 w-3" /> Change password</button></div></div>
-            <div className="flex flex-wrap items-center gap-1.5">{p.username && <Link to="/$username" params={{ username: p.username }} target="_blank" className="btn-ghost p-2 text-muted-foreground hover:text-foreground" title="View public profile"><ExternalLink className="h-4 w-4" /></Link>}<IconAction icon={Crown} label={p.is_premium ? "Remove Pro" : "Grant Pro"} onClick={() => mutate(p.id, { is_premium: !p.is_premium }, p.is_premium ? "Pro removed" : "Pro granted")} active={p.is_premium} /><IconAction icon={Flag} label={p.is_flagged ? "Unflag" : "Flag content"} onClick={() => mutate(p.id, { is_flagged: !p.is_flagged }, p.is_flagged ? "Flag cleared" : "Flagged for review")} active={p.is_flagged} /><IconAction icon={Ban} label={p.is_banned ? "Unban" : "Suspend"} onClick={() => mutate(p.id, { is_banned: !p.is_banned }, p.is_banned ? "Account restored" : "Account suspended")} active={p.is_banned} />{p.avatar_url && <button onClick={() => mutate(p.id, { avatar_url: null }, "Avatar removed")} className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-semibold hover:bg-accent">Reset avatar</button>}<IconAction icon={Trash2} label="Delete profile" destructive onClick={() => setProfileToDelete(p)} /></div>
+            <div className="flex flex-wrap items-center gap-1.5">{p.username && <Link to="/$username" params={{ username: p.username }} target="_blank" className="btn-ghost p-2 text-muted-foreground hover:text-foreground" title="View public profile"><ExternalLink className="h-4 w-4" /></Link>}<IconAction icon={Crown} label={p.is_premium ? "Remove Pro" : "Grant Pro"} onClick={() => void mutate(p.id, { is_premium: !p.is_premium }, p.is_premium ? "Pro removed" : "Pro granted")} active={p.is_premium} /><IconAction icon={Flag} label={p.is_flagged ? "Unflag" : "Flag content"} onClick={() => void mutate(p.id, { is_flagged: !p.is_flagged }, p.is_flagged ? "Flag cleared" : "Flagged for review")} active={p.is_flagged} /><IconAction icon={Ban} label={p.is_banned ? "Unban" : "Suspend"} onClick={() => void mutate(p.id, { is_banned: !p.is_banned }, p.is_banned ? "Account restored" : "Account suspended")} active={p.is_banned} />{p.avatar_url && <button onClick={() => void mutate(p.id, { avatar_url: null }, "Avatar removed")} className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-semibold hover:bg-accent">Reset avatar</button>}<IconAction icon={Trash2} label="Delete profile" destructive onClick={() => setProfileToDelete(p)} /></div>
           </div>)}
         </div>
       </section>
@@ -156,7 +192,7 @@ function AdminPage() {
         {badgeTarget ? <AdminBadgeManager initialMemberId={badgeTarget.id} /> : <section className="glass-panel border-dashed p-6 text-center"><Award className="mx-auto h-8 w-8 text-red-400" /><h2 className="mt-2 font-display text-lg font-bold">Manage Badges</h2><p className="mt-1 text-sm text-muted-foreground">Choose a member above and tap “Manage badges” to open the badge manager here.</p></section>}
       </div>
     </main>
-    {profileToDelete && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="glass-panel relative w-full max-w-sm p-6 shadow-lift"><button type="button" onClick={() => setProfileToDelete(null)} className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button><div className="mb-2 flex items-center gap-2 text-destructive"><AlertTriangle className="h-5 w-5" /><h3 className="font-display text-lg font-bold">Delete Profile?</h3></div><p className="text-sm text-muted-foreground">Are you sure you want to permanently delete profile <strong className="text-foreground">@{profileToDelete.username ?? profileToDelete.id}</strong>? This action cannot be undone and deletes all associated links.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setProfileToDelete(null)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => removeProfile(profileToDelete.id)} className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:opacity-90">Delete Profile</button></div></div></div>}
+    {profileToDelete && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="glass-panel relative w-full max-w-sm p-6 shadow-lift"><button type="button" onClick={() => setProfileToDelete(null)} className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button><div className="mb-2 flex items-center gap-2 text-destructive"><AlertTriangle className="h-5 w-5" /><h3 className="font-display text-lg font-bold">Delete Profile?</h3></div><p className="text-sm text-muted-foreground">Are you sure you want to permanently delete profile <strong className="text-foreground">@{profileToDelete.username ?? profileToDelete.id}</strong>? This action cannot be undone and deletes all associated links.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setProfileToDelete(null)} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={() => void removeProfile(profileToDelete.id)} className="rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground hover:opacity-90">Delete Profile</button></div></div></div>}
     {passwordTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className="glass-panel relative w-full max-w-md p-6 shadow-lift"><button type="button" onClick={closePasswordModal} disabled={passwordBusy} className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"><X className="h-4 w-4" /></button><div className="mb-5"><div className="mb-2 flex items-center gap-2"><div className="rounded-xl bg-primary/10 p-2 text-primary"><KeyRound className="h-5 w-5" /></div><div><h3 className="font-display text-lg font-bold">Change Member Password</h3><p className="text-xs text-muted-foreground">Selected member: @{passwordTarget.username ?? passwordTarget.display_name ?? "member"}</p></div></div></div><div className="space-y-4"><div><label className="mb-1.5 block text-xs font-semibold">Member email</label><input type="email" value={passwordEmail} onChange={(e) => setPasswordEmail(e.target.value)} placeholder="user@example.com" autoComplete="off" className="w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-sm outline-none focus:border-primary" /></div><div><label className="mb-1.5 block text-xs font-semibold">New password</label><div className="relative"><input type={showNewPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter a new password" autoComplete="new-password" className="w-full rounded-xl border border-input bg-card px-3.5 py-2.5 pr-11 text-sm outline-none focus:border-primary" /><button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:text-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"}>{showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1.5 text-[11px] text-muted-foreground">6–128 characters. The password is securely hashed on the server.</p></div></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={closePasswordModal} disabled={passwordBusy} className="btn-ghost text-xs">Cancel</button><button type="button" onClick={changeMemberPassword} disabled={passwordBusy} className="btn-primary text-xs disabled:opacity-60">{passwordBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Changing…</> : <><KeyRound className="h-3.5 w-3.5" /> Change Password</>}</button></div></div></div>}
   </div>;
 }
