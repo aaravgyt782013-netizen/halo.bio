@@ -1,3 +1,6 @@
+import { hashPasswordServer } from "./crypto";
+import { serverStorage, type Profile } from "./storage";
+
 type RateLimitRecord = {
   count: number;
   resetAt: number;
@@ -47,3 +50,52 @@ export function checkRateLimit(
   const retryAfter = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
   return { allowed: false, retryAfter };
 }
+
+/**
+ * Extend the existing admin profile mutation endpoint with a password-only
+ * operation. This keeps password hashing server-side and never stores a
+ * plaintext password in a profile document.
+ */
+type AdminPasswordRequest = {
+  email: string;
+  password: string;
+};
+
+type AdminMutation = Partial<Profile> & {
+  __adminPassword?: AdminPasswordRequest;
+};
+
+const originalAdminMutateProfile = serverStorage.adminMutateProfile.bind(serverStorage);
+serverStorage.adminMutateProfile = async (userId: string, updates: Partial<Profile>) => {
+  const mutation = updates as AdminMutation;
+  const passwordRequest = mutation.__adminPassword;
+
+  if (passwordRequest) {
+    const email = String(passwordRequest.email || "").trim().toLowerCase();
+    const password = String(passwordRequest.password || "");
+
+    if (!email || !email.includes("@")) {
+      return { success: false, error: "Please enter a valid user email" };
+    }
+    if (password.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters long" };
+    }
+    if (password.length > 128) {
+      return { success: false, error: "Password exceeds maximum length" };
+    }
+
+    const targetUser = await serverStorage.getUserByEmail(email);
+    if (!targetUser || targetUser.id !== userId) {
+      return { success: false, error: "Email does not match the selected member" };
+    }
+
+    const newHash = hashPasswordServer(password);
+    const changed = await serverStorage.updateUserPassword(targetUser.id, newHash);
+    if (!changed) {
+      return { success: false, error: "Could not update the user's password" };
+    }
+  }
+
+  const { __adminPassword: _ignored, ...profileChanges } = mutation;
+  return originalAdminMutateProfile(userId, profileChanges);
+};
