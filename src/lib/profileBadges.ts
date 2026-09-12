@@ -6,6 +6,8 @@ export type ProfileBadge = {
   description: string;
   icon: string;
   color: string;
+  emoji?: string;
+  glowColor?: string;
 };
 
 export const PROFILE_BADGES: ProfileBadge[] = [
@@ -35,14 +37,7 @@ export const PROFILE_BADGES: ProfileBadge[] = [
 export const BADGE_PLATFORM = "__spider_profile_badge__";
 
 export function encodeBadge(badge: ProfileBadge): SocialLink {
-  return {
-    id: `badge:${badge.id}`,
-    platform: BADGE_PLATFORM,
-    url: badge.id,
-    title: badge.name,
-    icon_url: JSON.stringify(badge),
-    active: false,
-  };
+  return { id: `badge:${badge.id}`, platform: BADGE_PLATFORM, url: badge.id, title: badge.name, icon_url: JSON.stringify(badge), active: false };
 }
 
 export function extractBadges(links?: SocialLink[] | null): ProfileBadge[] {
@@ -52,9 +47,7 @@ export function extractBadges(links?: SocialLink[] | null): ProfileBadge[] {
     if (link.platform !== BADGE_PLATFORM) continue;
     try {
       const parsed = JSON.parse(link.icon_url || "") as ProfileBadge;
-      if (parsed?.id && parsed?.name && !result.some((x) => x.id === parsed.id)) {
-        result.push(parsed);
-      }
+      if (parsed?.id && parsed?.name && !result.some((x) => x.id === parsed.id)) result.push(parsed);
     } catch {
       const fallback = PROFILE_BADGES.find((x) => x.id === link.url);
       if (fallback && !result.some((x) => x.id === fallback.id)) result.push(fallback);
