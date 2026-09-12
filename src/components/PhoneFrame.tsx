@@ -1,7 +1,11 @@
-import { type ReactNode } from "react";
+import { type ReactNode, isValidElement } from "react";
+import { DashboardBadgesPortal } from "@/components/DashboardBadgesPortal";
+import type { Profile } from "@/lib/bio";
 
 /** iOS-style device frame used for the live preview in the builder. Fully responsive on mobile. */
 export function PhoneFrame({ children }: { children: ReactNode }) {
+  const child = isValidElement(children) ? children : null;
+  const profile = child ? (child.props as { profile?: Profile }).profile : undefined;
   return (
     <div className="relative mx-auto w-full max-w-[340px] px-2 sm:px-0">
       <div className="relative rounded-[2.5rem] sm:rounded-[3.2rem] border border-border bg-foreground/90 p-2 sm:p-[10px] shadow-lift">
@@ -10,6 +14,7 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
           {children}
         </div>
       </div>
+      {profile && <DashboardBadgesPortal profile={profile} />}
     </div>
   );
 }
