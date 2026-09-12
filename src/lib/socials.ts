@@ -27,6 +27,38 @@ export interface PlatformConfig {
   hint: string;
 }
 
+// Official-looking Simple Icons SVGs are used for saved social links so profiles
+// show recognizable app marks instead of generic placeholder icons.
+const BRAND_ICONS: Record<string, string> = {
+  instagram: "https://cdn.simpleicons.org/instagram",
+  tiktok: "https://cdn.simpleicons.org/tiktok",
+  youtube: "https://cdn.simpleicons.org/youtube",
+  twitter: "https://cdn.simpleicons.org/x",
+  spotify: "https://cdn.simpleicons.org/spotify",
+  discord: "https://cdn.simpleicons.org/discord",
+  github: "https://cdn.simpleicons.org/github",
+  twitch: "https://cdn.simpleicons.org/twitch",
+  linkedin: "https://cdn.simpleicons.org/linkedin",
+  telegram: "https://cdn.simpleicons.org/telegram",
+  soundcloud: "https://cdn.simpleicons.org/soundcloud",
+  reddit: "https://cdn.simpleicons.org/reddit",
+  facebook: "https://cdn.simpleicons.org/facebook",
+  pinterest: "https://cdn.simpleicons.org/pinterest",
+  snapchat: "https://cdn.simpleicons.org/snapchat",
+  steam: "https://cdn.simpleicons.org/steam",
+  patreon: "https://cdn.simpleicons.org/patreon",
+  "ko-fi": "https://cdn.simpleicons.org/kofi",
+  paypal: "https://cdn.simpleicons.org/paypal",
+  medium: "https://cdn.simpleicons.org/medium",
+  behance: "https://cdn.simpleicons.org/behance",
+  dribbble: "https://cdn.simpleicons.org/dribbble",
+  buymeacoffee: "https://cdn.simpleicons.org/buymeacoffee",
+};
+
+export function getPlatformIconUrl(platform: string): string | undefined {
+  return BRAND_ICONS[platform.toLowerCase()];
+}
+
 export const SUPPORTED_PLATFORMS: PlatformConfig[] = [
   { id: "instagram", label: "Instagram", placeholder: "username or https://instagram.com/username", icon: Instagram, color: "#E1306C", prefixUrl: "https://instagram.com/", hint: "Instagram profile or @handle" },
   { id: "tiktok", label: "TikTok", placeholder: "@username or https://tiktok.com/@username", icon: Music, color: "#00F2FE", prefixUrl: "https://tiktok.com/@", hint: "TikTok profile or @handle" },
@@ -50,7 +82,6 @@ export function getPlatformConfig(platform: string): PlatformConfig {
   return { id: "website", label: platform.charAt(0).toUpperCase() + platform.slice(1), placeholder: "https://...", icon: Globe, color: "#3B82F6", hint: "External link" };
 }
 
-/** Detect the service from a complete URL, including common subdomains and short domains. */
 export function detectPlatformFromUrl(rawUrl: string): string {
   const value = rawUrl.trim().toLowerCase();
   if (!value) return "website";
