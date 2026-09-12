@@ -70,20 +70,30 @@ export function useIsAdmin(userId: string | undefined, email?: string | null) {
       return;
     }
 
-    if ((email ?? "").toLowerCase() === OWNER_EMAIL) {
+    let cancelled = false;
+    const suppliedEmail = (email ?? "").toLowerCase();
+    if (suppliedEmail === OWNER_EMAIL) {
       setIsAdmin(true);
       return;
     }
 
-    let cancelled = false;
-    db.from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle()
-      .then(({ data }: { data: { role: string } | null }) => {
-        if (!cancelled) setIsAdmin(!!data);
-      });
+    auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const currentEmail = (data.user?.email ?? "").toLowerCase();
+      if (currentEmail === OWNER_EMAIL) {
+        setIsAdmin(true);
+        return;
+      }
+
+      db.from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle()
+        .then(({ data: role }) => {
+          if (!cancelled) setIsAdmin(!!role);
+        });
+    });
 
     return () => {
       cancelled = true;
