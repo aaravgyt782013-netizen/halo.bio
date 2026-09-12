@@ -24,9 +24,21 @@ function isRecoverableChunkError(error: unknown) {
         ? `Response ${error.status} ${error.url}`
         : String(error);
 
-  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module/i.test(
+  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module|Failed to fetch module/i.test(
     message,
   );
+}
+
+function recoverFromStaleDeployment() {
+  if (typeof window === "undefined") return;
+
+  const alreadyRecovered = sessionStorage.getItem(RECOVERY_KEY) === "1";
+  if (alreadyRecovered) return;
+
+  sessionStorage.setItem(RECOVERY_KEY, "1");
+  const url = new URL(window.location.href);
+  url.searchParams.set("__spider_refresh", String(Date.now()));
+  window.location.replace(url.toString());
 }
 
 function NotFoundComponent() {
@@ -56,13 +68,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     console.error(error);
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
 
-    // Recover once from stale/damaged route chunks after a deployment.
-    if (isRecoverableChunkError(error) && typeof window !== "undefined") {
-      const alreadyRecovered = sessionStorage.getItem(RECOVERY_KEY) === "1";
-      if (!alreadyRecovered) {
-        sessionStorage.setItem(RECOVERY_KEY, "1");
-        window.location.reload();
-      }
+    if (isRecoverableChunkError(error)) {
+      recoverFromStaleDeployment();
     }
   }, [error]);
 
@@ -80,7 +87,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             onClick={() => {
               if (typeof window !== "undefined") {
                 sessionStorage.removeItem(RECOVERY_KEY);
-                window.location.reload();
+                recoverFromStaleDeployment();
               } else {
                 reset();
               }
@@ -161,11 +168,34 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    // Successful mount means the application is healthy; clear the one-time
-    // recovery marker so future deployments can recover independently.
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+
+    const handleError = (event: ErrorEvent) => {
+      if (isRecoverableChunkError(event.error ?? event.message)) {
+        recoverFromStaleDeployment();
+      }
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      if (isRecoverableChunkError(event.reason)) {
+        recoverFromStaleDeployment();
+      }
+    };
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleRejection);
+
+    // Don't immediately clear the recovery marker. Keep it through the first
+    // stable session so a delayed route-chunk failure can still self-heal.
+    const timer = window.setTimeout(() => {
       sessionStorage.removeItem(RECOVERY_KEY);
-    }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleRejection);
+      window.clearTimeout(timer);
+    };
   }, []);
 
   return (
