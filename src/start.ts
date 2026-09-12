@@ -16,7 +16,7 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     console.error(error);
     return new Response(renderErrorPage(), {
       status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
     });
   }
 });
@@ -26,5 +26,12 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
+  // The editor, auth screens and profile builder use browser state extensively
+  // (localStorage/sessionStorage, media APIs and client-side auth hydration).
+  // Rendering those components on the server was causing navigation-only
+  // failures even though direct URLs rendered correctly. Keep the application
+  // client-rendered so initial loads and subsequent navigations use the same
+  // execution path.
+  defaultSsr: false,
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));
