@@ -7,6 +7,8 @@ import {
   type BioLink,
 } from "@/lib/bio";
 import { ProfileView } from "@/components/ProfileView";
+import { ProfileBadges } from "@/components/ProfileBadges";
+import { extractBadges } from "@/lib/profileBadges";
 
 export const Route = createFileRoute("/$username")({
   loader: async ({ params }) => {
@@ -19,7 +21,7 @@ export const Route = createFileRoute("/$username")({
     if (!loaderData) {
       return {
         meta: [
-          { title: "Page unavailable — Halo" },
+          { title: "Page unavailable — Spider Website" },
           { name: "robots", content: "noindex" },
         ],
       };
@@ -28,10 +30,10 @@ export const Route = createFileRoute("/$username")({
     const name = profile.display_name || profile.username;
     const desc =
       profile.bio?.slice(0, 150) ||
-      `All of ${name}'s links in one place on Halo.`;
+      `All of ${name}'s links in one place on Spider Website.`;
     return {
       meta: [
-        { title: `${name} (@${profile.username}) — Halo` },
+        { title: `${name} (@${profile.username}) — Spider Website` },
         { name: "description", content: desc },
         { property: "og:title", content: `${name} (@${profile.username})` },
         { property: "og:description", content: desc },
@@ -47,7 +49,6 @@ function PublicProfile() {
   const [profile, setProfile] = useState<Profile>(loaderData.profile);
   const [links, setLinks] = useState<BioLink[]>(loaderData.links);
 
-  // Real-time synchronization: listen for dashboard edits or cross-tab updates
   useEffect(() => {
     const applyLocal = (e?: StorageEvent | Event) => {
       if (
@@ -60,16 +61,11 @@ function PublicProfile() {
       try {
         const localProfile = localStorage.getItem("halo_live_profile");
         const localLinks = localStorage.getItem("halo_live_links");
-
         if (localProfile) {
           const parsed = JSON.parse(localProfile);
-          if (parsed.username === profile.username) {
-            setProfile(parsed);
-          }
+          if (parsed.username === profile.username) setProfile(parsed);
         }
-        if (localLinks) {
-          setLinks(JSON.parse(localLinks));
-        }
+        if (localLinks) setLinks(JSON.parse(localLinks));
       } catch (err) {
         console.warn("Local storage error:", err);
       }
@@ -78,25 +74,19 @@ function PublicProfile() {
     const fetchDB = () => {
       try {
         const tick = localStorage.getItem("halo_sync_tick");
-        if (tick && Date.now() - parseInt(tick) < 5000) {
-          return; // Local changes are too fresh, skip DB fetch completely
-        }
+        if (tick && Date.now() - parseInt(tick) < 5000) return;
       } catch (err) {
         console.warn("Local storage error:", err);
       }
 
       void fetchProfileByUsername(profile.username).then((fresh) => {
         if (fresh && fresh.profile) {
-          // Check again in case local storage updated during the fetch
           try {
             const tick = localStorage.getItem("halo_sync_tick");
-            if (tick && Date.now() - parseInt(tick) < 5000) {
-              return; // Local changes are too fresh, DB might be stale
-            }
+            if (tick && Date.now() - parseInt(tick) < 5000) return;
           } catch (err) {
             console.warn("Local storage error:", err);
           }
-
           setProfile(fresh.profile);
           setLinks(fresh.links);
         }
@@ -106,8 +96,6 @@ function PublicProfile() {
     window.addEventListener("halo-store-updated", applyLocal);
     window.addEventListener("storage", applyLocal);
     window.addEventListener("focus", fetchDB);
-
-    // Run once on mount to catch any unsaved changes if they exist in localStorage
     applyLocal();
 
     return () => {
@@ -118,17 +106,13 @@ function PublicProfile() {
   }, [profile.username]);
 
   const handleEnter = async () => {
-    // Record view ONLY when user clicks the "Click To Enter" black screen
-    // The backend /api/view checks visitor IP address to ensure only 1 view per IP
     try {
       const viewedKey = `halo_viewed_${profile.username}`;
       const lastViewed = localStorage.getItem(viewedKey);
       if (
         lastViewed &&
         Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
-      ) {
-        return; // Already viewed recently on this device
-      }
+      ) return;
       localStorage.setItem(viewedKey, String(Date.now()));
     } catch (err) {
       console.warn("Local storage err:", err);
@@ -137,10 +121,7 @@ function PublicProfile() {
     const res = await db.rpc("increment_profile_view", {
       _username: profile.username,
     });
-    if (
-      res.data &&
-      typeof (res.data as { views?: number }).views === "number"
-    ) {
+    if (res.data && typeof (res.data as { views?: number }).views === "number") {
       setProfile((prev) => ({
         ...prev,
         views: (res.data as { views: number }).views,
@@ -148,8 +129,10 @@ function PublicProfile() {
     }
   };
 
+  const badges = extractBadges(profile.social_links);
+
   return (
-    <div className="h-screen w-full">
+    <div className="relative h-screen w-full">
       <ProfileView
         profile={profile}
         links={links}
@@ -161,9 +144,7 @@ function PublicProfile() {
             if (
               lastClicked &&
               Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
-            ) {
-              return;
-            }
+            ) return;
             localStorage.setItem(clickedKey, String(Date.now()));
           } catch (err) {
             console.warn("Local storage err:", err);
@@ -171,6 +152,11 @@ function PublicProfile() {
           void db.rpc("increment_link_click", { _link_id: link.id });
         }}
       />
+      {badges.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 top-1/2 z-[70] flex justify-center translate-y-[105px] px-6">
+          <ProfileBadges badges={badges} />
+        </div>
+      )}
     </div>
   );
 }
@@ -182,7 +168,6 @@ function ProfileNotFound() {
     links: BioLink[];
   } | null>(null);
 
-  // Client-side fallback: check if profile exists in local store or via API
   useEffect(() => {
     if (typeof window === "undefined") return;
     void fetchProfileByUsername(username).then((res) => {
@@ -191,15 +176,14 @@ function ProfileNotFound() {
         res.profile &&
         res.profile.username &&
         !res.profile.is_banned
-      ) {
-        setClientProfile(res);
-      }
+      ) setClientProfile(res);
     });
   }, [username]);
 
   if (clientProfile) {
+    const badges = extractBadges(clientProfile.profile.social_links);
     return (
-      <div className="h-screen w-full">
+      <div className="relative h-screen w-full">
         <ProfileView
           profile={clientProfile.profile}
           links={clientProfile.links}
@@ -210,9 +194,7 @@ function ProfileNotFound() {
               if (
                 lastViewed &&
                 Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
-              ) {
-                return;
-              }
+              ) return;
               localStorage.setItem(viewedKey, String(Date.now()));
             } catch (err) {
               console.warn("Local storage err:", err);
@@ -245,9 +227,7 @@ function ProfileNotFound() {
               if (
                 lastClicked &&
                 Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
-              ) {
-                return;
-              }
+              ) return;
               localStorage.setItem(clickedKey, String(Date.now()));
             } catch (err) {
               console.warn("Local storage err:", err);
@@ -255,6 +235,11 @@ function ProfileNotFound() {
             void db.rpc("increment_link_click", { _link_id: link.id });
           }}
         />
+        {badges.length > 0 && (
+          <div className="pointer-events-none fixed inset-x-0 top-1/2 z-[70] flex justify-center translate-y-[105px] px-6">
+            <ProfileBadges badges={badges} />
+          </div>
+        )}
       </div>
     );
   }
@@ -278,7 +263,7 @@ function ProfileNotFound() {
             Claim @{username} now
           </Link>
           <Link to="/" className="btn-ghost">
-            Explore Halo
+            Explore Spider Website
           </Link>
         </div>
       </div>
