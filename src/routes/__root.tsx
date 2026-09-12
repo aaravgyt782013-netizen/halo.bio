@@ -12,6 +12,7 @@ import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import themeCss from "../theme.css?url";
+import spiderBrandCss from "../spider-brand.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -55,16 +56,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SpiderWensors — Media-rich link in bio pages" },
-      { name: "description", content: "Build a premium link-in-bio page with video backgrounds, auto-play music and frosted glass styling." },
-      { property: "og:title", content: "SpiderWensors — Media-rich link in bio pages" },
-      { property: "og:description", content: "Build a premium link-in-bio page with video backgrounds, auto-play music and frosted glass styling." },
+      { title: "Spider Website — Media-rich profile pages" },
+      { name: "description", content: "Build a premium Spider Website profile with video backgrounds, music and customizable glass styling." },
+      { property: "og:title", content: "Spider Website — Media-rich profile pages" },
+      { property: "og:description", content: "Build a premium Spider Website profile with video backgrounds, music and customizable glass styling." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "stylesheet", href: themeCss },
+      { rel: "stylesheet", href: spiderBrandCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" },
