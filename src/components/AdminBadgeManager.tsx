@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Award, Check, ImagePlus, Link2, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { Award, Check, Link2, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { db, type Profile } from "@/lib/bio";
 import { extractBadges, mergeBadges, PROFILE_BADGES, type ProfileBadge } from "@/lib/profileBadges";
@@ -8,6 +8,7 @@ import { useAuth, useIsAdmin } from "@/hooks/useAuth";
 const DEFINITION_PLATFORM = "__spider_badge_definition__";
 const emojiPresets = ["⭐", "🔥", "💎", "👑", "⚡", "💫", "🎯", "🚀", "🏆", "🛡️", "💙", "❤️"];
 const input = "mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none transition focus:border-red-500/50";
+const ADMIN_CSRF = { "X-Requested-With": "halo-app" };
 
 function readDefinitions(links: any[] | null | undefined): ProfileBadge[] {
   return (links ?? []).flatMap((link) => {
@@ -24,6 +25,17 @@ function saveDefinitions(links: any[] | null | undefined, badges: ProfileBadge[]
 function imageFromBadge(badge: ProfileBadge) {
   if (badge.imageUrl) return <img src={badge.imageUrl} alt="" className="h-7 w-7 object-contain" />;
   return <span>{badge.emoji || "★"}</span>;
+}
+
+async function adminProfileMutation(targetUserId: string, changes: Partial<Profile>) {
+  const res = await fetch("/api/admin/profile-mutate", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...ADMIN_CSRF },
+    credentials: "include",
+    body: JSON.stringify({ targetUserId, changes }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  if (!res.ok || !data.success) throw new Error(data.error || "Could not save admin change");
 }
 
 export function AdminBadgeManager({ initialMemberId = "" }: { initialMemberId?: string }) {
@@ -73,6 +85,7 @@ export function AdminBadgeManager({ initialMemberId = "" }: { initialMemberId?: 
     if (error) throw new Error(error.message || "Could not save badge definitions");
     setProfiles((items) => items.map((p) => p.id === owner.id ? { ...p, social_links: saveDefinitions(p.social_links, next) } : p));
     setDefinitions(next);
+    window.dispatchEvent(new Event("halo-store-updated"));
   };
 
   const readImageFile = (file: File) => new Promise<string>((resolve, reject) => {
@@ -97,7 +110,7 @@ export function AdminBadgeManager({ initialMemberId = "" }: { initialMemberId?: 
     if (!emoji.trim() && !cleanImage) return toast.error("Add an emoji or badge image");
     if (cleanImage && !/^https?:\/\//i.test(cleanImage) && !cleanImage.startsWith("data:image/")) return toast.error("Badge image URL must start with http:// or https://");
     const idBase = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const badge: ProfileBadge = { id: `${idBase || "custom"}-${Date.now().toString(36)}`, name: cleanName, description: description.trim() || "Custom Spider Website badge.", icon: "award", emoji: emoji.trim() ? emoji.trim().slice(0, 8) : undefined, imageUrl: cleanImage || undefined, color, glowColor };
+    const badge: ProfileBadge = { id: `${idBase || "custom"}-${Date.now().toString(36)}`, name: cleanName, description: description.trim() || "Custom Spider Wensors badge.", icon: "award", emoji: emoji.trim() ? emoji.trim().slice(0, 8) : undefined, imageUrl: cleanImage || undefined, color, glowColor };
     setSaving(true);
     try { await persistDefinitions([...definitions, badge]); setName(""); setDescription(""); setEmoji("⭐"); setImageUrl(""); if (fileRef.current) fileRef.current.value = ""; toast.success(`${cleanName} badge created`); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not create badge"); }
@@ -107,13 +120,22 @@ export function AdminBadgeManager({ initialMemberId = "" }: { initialMemberId?: 
   const assign = async (badge: ProfileBadge) => {
     if (!selected) return;
     setBusyBadge(badge.id);
-    const current = extractBadges(selected.social_links);
-    const next = current.some((b) => b.id === badge.id) ? current.filter((b) => b.id !== badge.id) : [...current, badge];
-    const socialLinks = mergeBadges(selected.social_links, next);
-    const { error } = await db.from("profiles").update({ social_links: socialLinks }).eq("id", selected.id);
-    if (error) toast.error("Could not update member badge");
-    else { setProfiles((items) => items.map((p) => p.id === selected.id ? { ...p, social_links: socialLinks } : p)); toast.success(next.some((b) => b.id === badge.id) ? "Badge assigned" : "Badge removed"); }
-    setBusyBadge(null);
+    const previousLinks = selected.social_links;
+    const current = extractBadges(previousLinks);
+    const isAssigned = current.some((b) => b.id === badge.id);
+    const next = isAssigned ? current.filter((b) => b.id !== badge.id) : [...current, badge];
+    const socialLinks = mergeBadges(previousLinks, next);
+    setProfiles((items) => items.map((p) => p.id === selected.id ? { ...p, social_links: socialLinks } : p));
+    try {
+      await adminProfileMutation(selected.id, { social_links: socialLinks });
+      toast.success(isAssigned ? "Badge removed" : "Badge assigned");
+      window.dispatchEvent(new Event("halo-store-updated"));
+    } catch (error) {
+      setProfiles((items) => items.map((p) => p.id === selected.id ? { ...p, social_links: previousLinks } : p));
+      toast.error(error instanceof Error ? error.message : "Could not update member badge");
+    } finally {
+      setBusyBadge(null);
+    }
   };
 
   const deleteBadge = async (badge: ProfileBadge) => {
@@ -124,9 +146,13 @@ export function AdminBadgeManager({ initialMemberId = "" }: { initialMemberId?: 
       await persistDefinitions(next);
       for (const p of profiles) {
         const current = extractBadges(p.social_links);
-        if (current.some((b) => b.id === badge.id)) await db.from("profiles").update({ social_links: mergeBadges(p.social_links, current.filter((b) => b.id !== badge.id)) }).eq("id", p.id);
+        if (current.some((b) => b.id === badge.id)) {
+          const nextLinks = mergeBadges(p.social_links, current.filter((b) => b.id !== badge.id));
+          await adminProfileMutation(p.id, { social_links: nextLinks });
+        }
       }
       setProfiles((items) => items.map((p) => ({ ...p, social_links: mergeBadges(p.social_links, extractBadges(p.social_links).filter((b) => b.id !== badge.id)) })));
+      window.dispatchEvent(new Event("halo-store-updated"));
       toast.success("Custom badge deleted");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not delete badge"); }
     finally { setSaving(false); }
