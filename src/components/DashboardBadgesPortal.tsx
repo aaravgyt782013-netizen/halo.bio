@@ -10,44 +10,69 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     if (typeof window === "undefined" || window.location.pathname !== "/dashboard") return;
-    const tabBar = Array.from(document.querySelectorAll("button")).find((el) => {
+    let tabBar: HTMLElement | null = null;
+    let content: HTMLDivElement | null = null;
+    let badgeButton: HTMLButtonElement | null = null;
+    let originals: HTMLElement[] = [];
+
+    const findTabBar = () => Array.from(document.querySelectorAll("button")).find((el) => {
       const text = el.textContent?.trim();
       return text === "Media & FX" && el.parentElement?.textContent?.includes("Appearance") && el.parentElement?.textContent?.includes("Social Icons");
-    })?.parentElement;
-    if (!tabBar) return;
-    tabBar.classList.remove("sm:grid-cols-4");
-    tabBar.classList.add("sm:grid-cols-5");
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-semibold transition-all min-w-0 truncate text-muted-foreground hover:text-foreground";
-    b.innerHTML = '<span class="text-sm leading-none">🏅</span><span class="truncate">Badges</span>';
-    tabBar.appendChild(b);
+    })?.parentElement as HTMLElement | undefined;
 
-    const content = document.createElement("div");
-    content.className = "dashboard-badges-content hidden";
-    const parent = tabBar.parentElement;
-    if (!parent) { b.remove(); return; }
-    parent.appendChild(content);
-    const originals = Array.from(parent.children).filter((el) => el !== tabBar && el !== content) as HTMLElement[];
+    const ensure = () => {
+      const found = findTabBar();
+      if (!found) return;
+      tabBar = found;
+      tabBar.classList.remove("sm:grid-cols-4");
+      tabBar.classList.add("sm:grid-cols-5");
+      if (!badgeButton || !badgeButton.isConnected) {
+        badgeButton = document.createElement("button");
+        badgeButton.type = "button";
+        badgeButton.className = "inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-2 py-2 text-[11px] sm:text-xs font-semibold transition-all min-w-0 truncate text-muted-foreground hover:text-foreground";
+        badgeButton.innerHTML = '<span class="text-sm leading-none">🏅</span><span class="truncate">Badges</span>';
+        tabBar.appendChild(badgeButton);
+        badgeButton.addEventListener("click", show);
+      }
+      const parent = tabBar.parentElement;
+      if (!parent) return;
+      if (!content || !content.isConnected) {
+        content = document.createElement("div");
+        content.className = "dashboard-badges-content hidden";
+        parent.appendChild(content);
+        setMount(content);
+      }
+      originals = Array.from(parent.children).filter((el) => el !== tabBar && el !== content) as HTMLElement[];
+      const otherTabs = Array.from(tabBar.querySelectorAll("button")).filter((x) => x !== badgeButton);
+      otherTabs.forEach((x) => x.addEventListener("click", hide));
+    };
+
     const show = () => {
       setActive(true);
       originals.forEach((el) => { el.style.display = "none"; });
-      content.classList.remove("hidden");
-      b.classList.add("bg-card", "text-foreground", "shadow-sm");
-      b.classList.remove("text-muted-foreground");
+      content?.classList.remove("hidden");
+      badgeButton?.classList.add("bg-card", "text-foreground", "shadow-sm");
+      badgeButton?.classList.remove("text-muted-foreground");
     };
     const hide = () => {
       setActive(false);
       originals.forEach((el) => { el.style.display = ""; });
-      content.classList.add("hidden");
-      b.classList.remove("bg-card", "text-foreground", "shadow-sm");
-      b.classList.add("text-muted-foreground");
+      content?.classList.add("hidden");
+      badgeButton?.classList.remove("bg-card", "text-foreground", "shadow-sm");
+      badgeButton?.classList.add("text-muted-foreground");
     };
-    b.addEventListener("click", show);
-    const otherTabs = Array.from(tabBar.querySelectorAll("button")).filter((x) => x !== b);
-    otherTabs.forEach((x) => x.addEventListener("click", hide));
-    setMount(content); setButton(b);
-    return () => { b.removeEventListener("click", show); otherTabs.forEach((x) => x.removeEventListener("click", hide)); b.remove(); content.remove(); tabBar.classList.remove("sm:grid-cols-5"); tabBar.classList.add("sm:grid-cols-4"); };
+
+    ensure();
+    const observer = new MutationObserver(() => ensure());
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      badgeButton?.removeEventListener("click", show);
+      badgeButton?.remove();
+      content?.remove();
+      tabBar?.classList.remove("sm:grid-cols-5");
+      tabBar?.classList.add("sm:grid-cols-4");
+    };
   }, []);
 
   if (!mount || !button) return null;
