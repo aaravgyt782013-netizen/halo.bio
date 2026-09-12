@@ -41,7 +41,7 @@ export function encodeBadge(badge: ProfileBadge): SocialLink {
     url: badge.id,
     title: badge.name,
     icon_url: JSON.stringify(badge),
-    active: true,
+    active: false,
   };
 }
 
