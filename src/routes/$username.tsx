@@ -8,6 +8,7 @@ import {
 } from "@/lib/bio";
 import { ProfileView } from "@/components/ProfileView";
 import { ProfileBadges } from "@/components/ProfileBadges";
+import { ProfileBadgesTab } from "@/components/ProfileBadgesTab";
 import { extractBadges } from "@/lib/profileBadges";
 
 export const Route = createFileRoute("/$username")({
@@ -55,9 +56,7 @@ function PublicProfile() {
         e instanceof StorageEvent &&
         e.key &&
         !e.key.startsWith("halo_live_")
-      ) {
-        return;
-      }
+      ) return;
       try {
         const localProfile = localStorage.getItem("halo_live_profile");
         const localLinks = localStorage.getItem("halo_live_links");
@@ -78,7 +77,6 @@ function PublicProfile() {
       } catch (err) {
         console.warn("Local storage error:", err);
       }
-
       void fetchProfileByUsername(profile.username).then((fresh) => {
         if (fresh && fresh.profile) {
           try {
@@ -97,7 +95,6 @@ function PublicProfile() {
     window.addEventListener("storage", applyLocal);
     window.addEventListener("focus", fetchDB);
     applyLocal();
-
     return () => {
       window.removeEventListener("halo-store-updated", applyLocal);
       window.removeEventListener("storage", applyLocal);
@@ -109,23 +106,14 @@ function PublicProfile() {
     try {
       const viewedKey = `halo_viewed_${profile.username}`;
       const lastViewed = localStorage.getItem(viewedKey);
-      if (
-        lastViewed &&
-        Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
-      ) return;
+      if (lastViewed && Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000) return;
       localStorage.setItem(viewedKey, String(Date.now()));
     } catch (err) {
       console.warn("Local storage err:", err);
     }
-
-    const res = await db.rpc("increment_profile_view", {
-      _username: profile.username,
-    });
+    const res = await db.rpc("increment_profile_view", { _username: profile.username });
     if (res.data && typeof (res.data as { views?: number }).views === "number") {
-      setProfile((prev) => ({
-        ...prev,
-        views: (res.data as { views: number }).views,
-      }));
+      setProfile((prev) => ({ ...prev, views: (res.data as { views: number }).views }));
     }
   };
 
@@ -141,10 +129,7 @@ function PublicProfile() {
           try {
             const clickedKey = `halo_clicked_${link.id}`;
             const lastClicked = localStorage.getItem(clickedKey);
-            if (
-              lastClicked &&
-              Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
-            ) return;
+            if (lastClicked && Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000) return;
             localStorage.setItem(clickedKey, String(Date.now()));
           } catch (err) {
             console.warn("Local storage err:", err);
@@ -152,31 +137,24 @@ function PublicProfile() {
           void db.rpc("increment_link_click", { _link_id: link.id });
         }}
       />
-      {badges.length > 0 && (
+      {badges.length > 0 && <>
         <div className="pointer-events-none fixed inset-x-0 top-1/2 z-[70] flex justify-center translate-y-[105px] px-6">
           <ProfileBadges badges={badges} />
         </div>
-      )}
+        <ProfileBadgesTab badges={badges} />
+      </>}
     </div>
   );
 }
 
 function ProfileNotFound() {
   const { username } = Route.useParams();
-  const [clientProfile, setClientProfile] = useState<{
-    profile: Profile;
-    links: BioLink[];
-  } | null>(null);
+  const [clientProfile, setClientProfile] = useState<{ profile: Profile; links: BioLink[] } | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     void fetchProfileByUsername(username).then((res) => {
-      if (
-        res &&
-        res.profile &&
-        res.profile.username &&
-        !res.profile.is_banned
-      ) setClientProfile(res);
+      if (res && res.profile && res.profile.username && !res.profile.is_banned) setClientProfile(res);
     });
   }, [username]);
 
@@ -191,43 +169,21 @@ function ProfileNotFound() {
             try {
               const viewedKey = `halo_viewed_${clientProfile.profile.username}`;
               const lastViewed = localStorage.getItem(viewedKey);
-              if (
-                lastViewed &&
-                Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000
-              ) return;
+              if (lastViewed && Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000) return;
               localStorage.setItem(viewedKey, String(Date.now()));
             } catch (err) {
               console.warn("Local storage err:", err);
             }
-
-            const res = await db.rpc("increment_profile_view", {
-              _username: clientProfile.profile.username,
-            });
-            if (
-              res.data &&
-              typeof (res.data as { views?: number }).views === "number"
-            ) {
-              setClientProfile((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      profile: {
-                        ...prev.profile,
-                        views: (res.data as { views: number }).views,
-                      },
-                    }
-                  : null,
-              );
+            const res = await db.rpc("increment_profile_view", { _username: clientProfile.profile.username });
+            if (res.data && typeof (res.data as { views?: number }).views === "number") {
+              setClientProfile((prev) => prev ? { ...prev, profile: { ...prev.profile, views: (res.data as { views: number }).views } } : null);
             }
           }}
           onLinkClick={(link) => {
             try {
               const clickedKey = `halo_clicked_${link.id}`;
               const lastClicked = localStorage.getItem(clickedKey);
-              if (
-                lastClicked &&
-                Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000
-              ) return;
+              if (lastClicked && Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000) return;
               localStorage.setItem(clickedKey, String(Date.now()));
             } catch (err) {
               console.warn("Local storage err:", err);
@@ -235,11 +191,12 @@ function ProfileNotFound() {
             void db.rpc("increment_link_click", { _link_id: link.id });
           }}
         />
-        {badges.length > 0 && (
+        {badges.length > 0 && <>
           <div className="pointer-events-none fixed inset-x-0 top-1/2 z-[70] flex justify-center translate-y-[105px] px-6">
             <ProfileBadges badges={badges} />
           </div>
-        )}
+          <ProfileBadgesTab badges={badges} />
+        </>}
       </div>
     );
   }
@@ -248,23 +205,11 @@ function ProfileNotFound() {
     <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 px-5 text-center">
       <div className="aura pointer-events-none absolute inset-0 -z-10" />
       <div className="glass-panel max-w-md p-8 animate-float-in">
-        <h1 className="font-display text-3xl font-bold tracking-tight">
-          @{username} is available!
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Nobody has claimed this custom link-in-bio handle yet.
-        </p>
+        <h1 className="font-display text-3xl font-bold tracking-tight">@{username} is available!</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Nobody has claimed this custom link-in-bio handle yet.</p>
         <div className="mt-6 flex justify-center gap-3">
-          <Link
-            to="/auth"
-            search={{ mode: "signup", u: username }}
-            className="btn-primary"
-          >
-            Claim @{username} now
-          </Link>
-          <Link to="/" className="btn-ghost">
-            Explore Spider Website
-          </Link>
+          <Link to="/auth" search={{ mode: "signup", u: username }} className="btn-primary">Claim @{username} now</Link>
+          <Link to="/" className="btn-ghost">Explore Spider Website</Link>
         </div>
       </div>
     </div>
