@@ -26,10 +26,16 @@
 }
 html,
 body { background: #070707 !important; color: #f7f7f7 !important; }
+body,
+button,
+input,
+textarea,
+select { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important; }
+h1,h2,h3,h4,h5,h6 { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important; letter-spacing: -0.015em !important; }
 .spider-brand { color: #ef4444 !important; }
 header a[href="/"].font-display { font-size: 0 !important; color: #f7f7f7 !important; white-space: nowrap; }
-header a[href="/"].font-display::before { content: "Spider"; font-size: 1.125rem; color: #ef4444; font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
-header a[href="/"].font-display::after { content: " Wensors"; font-size: 1.125rem; color: #f7f7f7; font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+header a[href="/"].font-display::before { content: "Spider"; font-size: 1.125rem; color: #ef4444; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+header a[href="/"].font-display::after { content: " Wensors"; font-size: 1.125rem; color: #f7f7f7; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
 .btn-primary,
 .btn-liquid { background-color: #ef4444 !important; }
 .field:focus { border-color: rgb(239 68 68 / 60%) !important; box-shadow: 0 0 0 4px rgb(239 68 68 / 14%) !important; }
