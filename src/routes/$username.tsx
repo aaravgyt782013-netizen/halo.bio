@@ -20,10 +20,6 @@ export const Route = createFileRoute("/$username")({
   component: PublicProfile,
 });
 
-function ProfileFooter() {
-  return <div className="pointer-events-none absolute inset-x-0 bottom-2 z-40 flex justify-center px-4"><span className="rounded-full border border-white/10 bg-black/45 px-3 py-1 text-[10px] font-medium tracking-wide text-white/55 backdrop-blur-md">@powered by: Aarav goyal</span></div>;
-}
-
 function PublicProfile() {
   const loaderData = Route.useLoaderData();
   const [profile, setProfile] = useState<Profile>(loaderData.profile);
@@ -59,7 +55,7 @@ function PublicProfile() {
   return <div className="relative h-screen w-full"><ProfileView profile={profile} links={links} onEnter={handleEnter} onLinkClick={(link) => {
     try { const clickedKey = `halo_clicked_${link.id}`; const lastClicked = localStorage.getItem(clickedKey); if (lastClicked && Date.now() - parseInt(lastClicked) < 12 * 60 * 60 * 1000) return; localStorage.setItem(clickedKey, String(Date.now())); } catch (err) { console.warn("Local storage err:", err); }
     void db.rpc("increment_link_click", { _link_id: link.id });
-  }} /><ProfileFooter /></div>;
+  }} /></div>;
 }
 
 function ProfileNotFound() {
@@ -67,9 +63,9 @@ function ProfileNotFound() {
   const [clientProfile, setClientProfile] = useState<{ profile: Profile; links: BioLink[] } | null>(null);
   useEffect(() => { if (typeof window === "undefined") return; void fetchProfileByUsername(username).then((res) => { if (res?.profile?.username && !res.profile.is_banned) setClientProfile(res); }); }, [username]);
   if (clientProfile) return <div className="relative h-screen w-full"><ProfileView profile={clientProfile.profile} links={clientProfile.links} onEnter={async () => {
-    try { const viewedKey = `halo_viewed_${clientProfile.profile.username}`; const lastViewed = localStorage.getItem(viewedKey); if (lastViewed && Date.now() - parseInt(lastViewed) < 12 * 60 * 60 * 1000) return; localStorage.setItem(viewedKey, String(Date.now())); } catch (err) { console.warn("Local storage err:", err); }
+    try { const viewedKey = `halo_viewed_${clientProfile.profile.username}`; const lastViewed = localStorage.getItem(viewedKey); if (lastViewed && Date.now() - parseInt(viewedKey) < 12 * 60 * 60 * 1000) return; localStorage.setItem(viewedKey, String(Date.now())); } catch (err) { console.warn("Local storage err:", err); }
     const res = await db.rpc("increment_profile_view", { _username: clientProfile.profile.username });
     if (res.data && typeof (res.data as { views?: number }).views === "number") setClientProfile((prev) => prev ? { ...prev, profile: { ...prev.profile, views: (res.data as { views: number }).views } } : null);
-  }} onLinkClick={(link) => { try { const clickedKey = `halo_clicked_${link.id}`; const lastClicked = localStorage.getItem(clickedKey); if (lastClicked && Date.now() - parseInt(clickedKey) < 12 * 60 * 60 * 1000) return; localStorage.setItem(clickedKey, String(Date.now())); } catch (err) { console.warn("Local storage err:", err); } void db.rpc("increment_link_click", { _link_id: link.id }); }} /><ProfileFooter /></div>;
+  }} onLinkClick={(link) => { try { const clickedKey = `halo_clicked_${link.id}`; const lastClicked = localStorage.getItem(clickedKey); if (lastClicked && Date.now() - parseInt(clickedKey) < 12 * 60 * 60 * 1000) return; localStorage.setItem(clickedKey, String(Date.now())); } catch (err) { console.warn("Local storage err:", err); } void db.rpc("increment_link_click", { _link_id: link.id }); }} /></div>;
   return <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 px-5 text-center"><div className="aura pointer-events-none absolute inset-0 -z-10" /><div className="glass-panel max-w-md p-8 animate-float-in"><h1 className="font-display text-3xl font-bold tracking-tight">@{username} is available!</h1><p className="mt-2 text-sm text-muted-foreground">Nobody has claimed this custom link-in-bio handle yet.</p><div className="mt-6 flex justify-center gap-3"><Link to="/auth" search={{ mode: "signup", u: username }} className="btn-primary">Claim @{username} now</Link><Link to="/" className="btn-ghost">Explore Spider Wensors</Link></div></div></div>;
 }
