@@ -5,7 +5,6 @@ const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const write = (p, s) => fs.writeFileSync(path.join(root, p), s, "utf8");
 
-// Preserve the full editor while ensuring every preset changes only card styling.
 const dashboardPath = "src/routes/dashboard.tsx";
 let dashboard = read(dashboardPath);
 const themeStart = dashboard.indexOf("const PRESET_THEMES = [");
@@ -34,6 +33,8 @@ if (themeStart >= 0) {
   { name: "Silver Night", bgType: "color" as const, bgValue: "#dbe4ee", accent: "#334155", opacity: 0.84, blur: 18, radius: 22 },
   { name: "Black & White", bgType: "color" as const, bgValue: "#0a0a0a", accent: "#f8fafc", opacity: 0.82, blur: 16, radius: 18 },
   { name: "Red & Blue", bgType: "color" as const, bgValue: "#090b17", accent: "#3b82f6", opacity: 0.74, blur: 24, radius: 26 },
+  { name: "Card Mode", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
+  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
 ];`;
     dashboard = dashboard.slice(0, themeStart) + themes + dashboard.slice(themeEnd + 2);
   }
@@ -42,31 +43,25 @@ if (themeStart >= 0) {
 dashboard = dashboard.replace(
   /const applyTheme = \(preset: \(typeof PRESET_THEMES\)\[number\]\) => \{[\s\S]*?\n  \};/,
   `const applyTheme = (preset: (typeof PRESET_THEMES)[number]) => {
+    const presentation = preset.name === "Background Typewriter" ? "background" : "card";
     patch({
+      profile_layout: presentation,
       accent_color: preset.accent,
       card_opacity: preset.opacity,
       card_blur: preset.blur,
       card_radius: preset.radius,
-    });
-    toast.success(\`Applied \${preset.name} card theme! Wallpaper stays unchanged.\`);
+    } as any);
+    toast.success(presentation === "background" ? "Background Typewriter mode enabled!" : \`Applied \${preset.name} card theme!\`);
   };`,
 );
 
-// Add a presentation selector without replacing the existing editor. It is
-// deliberately persisted through the same profile patch/sync path as themes.
-if (!dashboard.includes("PROFILE_PRESENTATION_SELECTOR")) {
-  const selector = `\n      {/* PROFILE_PRESENTATION_SELECTOR */}\n      <div className="fixed right-4 top-20 z-[80] w-[250px] rounded-2xl border border-white/10 bg-black/80 p-3 text-white shadow-2xl backdrop-blur-xl">\n        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">Profile presentation</div>\n        <div className="grid grid-cols-2 gap-2">\n          <button type="button" onClick={() => patch({ profile_layout: "card" } as any)} className={\`rounded-xl border px-3 py-2 text-xs font-semibold transition \${(profile as any).profile_layout !== "background" ? "border-white/30 bg-white/15 text-white" : "border-white/10 bg-white/5 text-white/60"}\`}>Card mode</button>\n          <button type="button" onClick={() => patch({ profile_layout: "background" } as any)} className={\`rounded-xl border px-3 py-2 text-xs font-semibold transition \${(profile as any).profile_layout === "background" ? "border-white/30 bg-white/15 text-white" : "border-white/10 bg-white/5 text-white/60"}\`}>On background</button>\n        </div>\n        <p className="mt-2 text-[10px] leading-relaxed text-white/40">On background removes the glass card and presents the profile directly over the wallpaper with a typewriter intro.</p>\n      </div>\n`;
-  const returnToken = "return (";
-  const firstReturn = dashboard.indexOf(returnToken);
-  if (firstReturn >= 0) {
-    dashboard = dashboard.slice(0, firstReturn + returnToken.length) + "<>" + selector + dashboard.slice(firstReturn + returnToken.length);
-    const lastReturnEnd = dashboard.lastIndexOf("\n  );");
-    if (lastReturnEnd > firstReturn) dashboard = dashboard.slice(0, lastReturnEnd) + "\n      </>" + dashboard.slice(lastReturnEnd);
-  }
-}
+// The editor's explicit save payload must include the presentation setting.
+dashboard = dashboard.replace(
+  '          enter_text: profile.enter_text,',
+  '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
+);
 write(dashboardPath, dashboard);
 
-// Theme contrast comes from the selected card theme, not the wallpaper.
 const profileViewPath = "src/components/ProfileView.tsx";
 let profileView = read(profileViewPath);
 const oldLight = '  const isLightTheme = profile.background_type === "color" && luminance(themeBackground) > 0.58;';
@@ -74,22 +69,17 @@ const newLight = `  const themeSignature = [String(profile.accent_color || "").t
   const isLightTheme = new Set(["#2563eb|0.86|18|24", "#dc2626|0.90|14|20", "#334155|0.84|18|22"]).has(themeSignature);`;
 if (profileView.includes(oldLight)) profileView = profileView.replace(oldLight, newLight);
 
-// Background presentation mode: the card disappears and the profile content
-// is rendered directly on the wallpaper. Text is introduced with a typewriter
-// animation, while links remain real clickable buttons.
 if (!profileView.includes("SPIDER_BACKGROUND_PRESENTATION")) {
   const marker = '  const badges = extractBadges(profile.social_links);';
-  const injected = `${marker}\n  const isBackgroundMode = (profile as any).profile_layout === "background";\n  const typewriterText = [profile.display_name || profile.username || "", profile.username ? \`@\${profile.username}\` : "", profile.bio || ""].filter(Boolean).join("\\n");\n  const [typedLength, setTypedLength] = useState(isBackgroundMode ? 0 : typewriterText.length);\n  useEffect(() => {\n    if (!isBackgroundMode) { setTypedLength(typewriterText.length); return; }\n    setTypedLength(0);\n    const timer = window.setInterval(() => setTypedLength((n) => Math.min(n + 1, typewriterText.length)), 38);\n    return () => window.clearInterval(timer);\n  }, [isBackgroundMode, typewriterText]);\n  const typedText = typewriterText.slice(0, typedLength);\n  const typingDone = typedLength >= typewriterText.length;\n  const [typedName, typedHandle, typedBio] = typedText.split("\\n");\n\n  const backgroundPresentation = isBackgroundMode ? <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-y-auto px-5 py-12 text-center">\n    <div className="pointer-events-auto w-full max-w-xl rounded-3xl px-5 py-8" style={{ color: primaryText, textShadow: isLightTheme ? "0 2px 14px rgba(255,255,255,.75)" : "0 2px 18px rgba(0,0,0,.65)" }}>\n      {profile.avatar_url && <img src={profile.avatar_url} alt="" className="mx-auto mb-5 h-20 w-20 rounded-full object-cover" style={{ border: \`2px solid color-mix(in oklab, \${readableAccent} 70%, transparent)\`, boxShadow: \`0 0 32px color-mix(in oklab, \${accent} 25%, transparent)\` }} />}\n      <h1 className="font-display text-3xl font-black tracking-tight sm:text-5xl" style={{ color: primaryText }}>{typedName}<span className="animate-pulse">{typedLength < typewriterText.length ? "|" : ""}</span></h1>\n      {typedHandle && <p className="mt-1 text-sm font-semibold opacity-75">{typedHandle}</p>}\n      {typedBio && <p className="mx-auto mt-4 max-w-lg whitespace-pre-line text-sm leading-7 opacity-90 sm:text-base">{typedBio}</p>}\n      {typingDone && <div className="mt-6 space-y-2 animate-float-in">\n        {badges.length > 0 && <ProfileBadges badges={badges} />}\n        <div className="flex flex-wrap items-center justify-center gap-2">\n          {(profile.social_links || []).filter((s) => s.active !== false && !s.platform.startsWith("__spider_")).map((soc) => { const cfg = getPlatformConfig(soc.platform); const Icon = cfg.icon; return <a key={soc.id} href={ensureProtocol(soc.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold backdrop-blur-md transition-transform hover:scale-105" style={{ borderColor: \`color-mix(in oklab, \${readableAccent} 35%, transparent)\`, backgroundColor: isLightTheme ? "rgba(255,255,255,.60)" : "rgba(0,0,0,.28)", color: primaryText }}><Icon className="h-3.5 w-3.5" />{soc.title || cfg.label}</a>; })}\n        </div>\n        <div className="mx-auto mt-3 grid w-full max-w-md gap-2">\n          {links.map((link) => <a key={link.id} href={ensureProtocol(link.url)} target="_blank" rel="noreferrer" onClick={() => onLinkClick?.(link)} className="block rounded-2xl border px-4 py-3 text-sm font-semibold backdrop-blur-md transition-all hover:scale-[1.02]" style={{ borderColor: \`color-mix(in oklab, \${readableAccent} 32%, transparent)\`, backgroundColor: isLightTheme ? "rgba(255,255,255,.68)" : "rgba(0,0,0,.30)", color: primaryText }}>{link.title}</a>)}\n        </div>\n      </div>}\n    </div>\n  </div> : null;\n  /* SPIDER_BACKGROUND_PRESENTATION */`;
+  const injected = `${marker}\n  const isBackgroundMode = (profile as any).profile_layout === "background";\n  const typewriterText = [profile.display_name || profile.username || "", profile.username ? \`@\${profile.username}\` : "", profile.bio || ""].filter(Boolean).join("\\n");\n  const [typedLength, setTypedLength] = useState(isBackgroundMode ? 0 : typewriterText.length);\n  useEffect(() => {\n    if (!isBackgroundMode) { setTypedLength(typewriterText.length); return; }\n    setTypedLength(0);\n    const timer = window.setInterval(() => setTypedLength((n) => Math.min(n + 1, typewriterText.length)), 38);\n    return () => window.clearInterval(timer);\n  }, [isBackgroundMode, typewriterText]);\n  const typedText = typewriterText.slice(0, typedLength);\n  const typingDone = typedLength >= typewriterText.length;\n  const [typedName, typedHandle, typedBio] = typedText.split("\\n");\n  const backgroundPresentation = isBackgroundMode ? <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-y-auto px-5 py-12 text-center">\n    <div className="pointer-events-auto w-full max-w-xl rounded-3xl px-5 py-8" style={{ color: primaryText, textShadow: isLightTheme ? "0 2px 14px rgba(255,255,255,.75)" : "0 2px 18px rgba(0,0,0,.65)" }}>\n      {profile.avatar_url && <img src={profile.avatar_url} alt="" className="mx-auto mb-5 h-20 w-20 rounded-full object-cover" style={{ border: \`2px solid color-mix(in oklab, \${readableAccent} 70%, transparent)\`, boxShadow: \`0 0 32px color-mix(in oklab, \${accent} 25%, transparent)\` }} />}\n      <h1 className="font-display text-3xl font-black tracking-tight sm:text-5xl" style={{ color: primaryText }}>{typedName}<span className="animate-pulse">{typedLength < typewriterText.length ? "|" : ""}</span></h1>\n      {typedHandle && <p className="mt-1 text-sm font-semibold opacity-75">{typedHandle}</p>}\n      {typedBio && <p className="mx-auto mt-4 max-w-lg whitespace-pre-line text-sm leading-7 opacity-90 sm:text-base">{typedBio}</p>}\n      {typingDone && <div className="mt-6 animate-float-in">\n        {badges.length > 0 && <ProfileBadges badges={badges} />}\n        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">\n          {(profile.social_links || []).filter((s) => s.active !== false && !s.platform.startsWith("__spider_")).map((soc) => { const cfg = getPlatformConfig(soc.platform); const Icon = cfg.icon; return <a key={soc.id} href={ensureProtocol(soc.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold backdrop-blur-md transition-transform hover:scale-105" style={{ borderColor: \`color-mix(in oklab, \${readableAccent} 35%, transparent)\`, backgroundColor: isLightTheme ? "rgba(255,255,255,.60)" : "rgba(0,0,0,.28)", color: primaryText }}><Icon className="h-3.5 w-3.5" />{soc.title || cfg.label}</a>; })}\n        </div>\n        <div className="mx-auto mt-3 grid w-full max-w-md gap-2">\n          {links.map((link) => <a key={link.id} href={ensureProtocol(link.url)} target="_blank" rel="noreferrer" onClick={() => onLinkClick?.(link)} className="block rounded-2xl border px-4 py-3 text-sm font-semibold backdrop-blur-md transition-all hover:scale-[1.02]" style={{ borderColor: \`color-mix(in oklab, \${readableAccent} 32%, transparent)\`, backgroundColor: isLightTheme ? "rgba(255,255,255,.68)" : "rgba(0,0,0,.30)", color: primaryText }}>{link.title}</a>)}\n        </div>\n      </div>}\n    </div>\n  </div> : null;\n  /* SPIDER_BACKGROUND_PRESENTATION */`;
   profileView = profileView.replace(marker, injected);
   const cardStart = '<div className="w-full max-w-sm p-6 text-center shadow-glass relative" style={cardStyle}>';
-  const cardReplacement = '<div style={{ display: isBackgroundMode ? "none" : "block" }}>' + cardStart;
-  if (profileView.includes(cardStart)) profileView = profileView.replace(cardStart, cardReplacement);
+  if (profileView.includes(cardStart)) profileView = profileView.replace(cardStart, '<div style={{ display: isBackgroundMode ? "none" : "block" }}>' + cardStart);
   const closing = '\n      </div>\n    </div>\n\n    {!preview';
   if (profileView.includes(closing)) profileView = profileView.replace(closing, '\n      </div>\n      </div>\n    </div>\n\n    {backgroundPresentation}\n\n    {!preview');
 }
 write(profileViewPath, profileView);
 
-// Public pages must not hydrate from global editor localStorage snapshots.
 const publicPath = "src/routes/$username.tsx";
 let publicProfile = read(publicPath);
 const effectStart = publicProfile.indexOf("  useEffect(() => {\n    const applyLocal");
@@ -122,4 +112,4 @@ if (effectStart >= 0 && effectEnd > effectStart) {
 }
 write(publicPath, publicProfile);
 
-console.log("Spider Wensors build preparation complete: persistent themes + card/background presentation + isolated public profiles");
+console.log("Spider Wensors build preparation complete");
