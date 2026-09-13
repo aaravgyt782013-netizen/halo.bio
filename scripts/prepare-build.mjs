@@ -5,8 +5,6 @@ const root = process.cwd();
 const dashboardPath = path.join(root, "src/routes/dashboard.tsx");
 let dashboard = fs.readFileSync(dashboardPath, "utf8");
 
-// Expand the built-in theme picker at build time. Do not rewrite TSX components
-// here; source files must remain canonical so Vite can parse them safely.
 const themeStart = dashboard.indexOf("const PRESET_THEMES = [");
 if (themeStart >= 0) {
   const themeEnd = dashboard.indexOf("];", themeStart);
@@ -49,24 +47,30 @@ dashboard = dashboard.replace(
   };`,
 );
 
-// Persist the presentation mode so the selected theme survives refreshes and
-// appears on the public profile, not just in the local editor preview.
 dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,',
   '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
 );
 
-// Add the existing badge showcase editor to the real dashboard React tree. It
-// then upgrades the four-tab bar to five tabs and inserts Badges after Media & FX.
-if (!dashboard.includes('DashboardBadgesPortal')) {
+// Mount the badge tab portal inside Dashboard itself. The portal watches the
+// real four-tab editor bar and inserts Badges immediately after Media & FX.
+if (!dashboard.includes("<DashboardBadgesPortal profile={profile} />")) {
   dashboard = dashboard.replace(
     'import { SocialLinksEditor } from "@/components/SocialLinksEditor";',
     'import { SocialLinksEditor } from "@/components/SocialLinksEditor";\nimport { DashboardBadgesPortal } from "@/components/DashboardBadgesPortal";',
   );
-  dashboard = dashboard.replace(
-    '          {/* Media & effects tab */}',
-    '          <DashboardBadgesPortal profile={profile} />\n\n          {/* Media & effects tab */}',
-  );
+  const dashboardStart = dashboard.indexOf("function Dashboard()");
+  const returnIndex = dashboard.indexOf("  return (", dashboardStart);
+  if (dashboardStart >= 0 && returnIndex >= 0) {
+    dashboard = dashboard.slice(0, returnIndex) + "  const badgePortal = <DashboardBadgesPortal profile={profile} />;\n\n" + dashboard.slice(returnIndex);
+    dashboard = dashboard.replace("  return (", "  return (\n    <>\n      {badgePortal}", 1);
+    // Close the fragment immediately before Dashboard's final return element.
+    const endMarker = "\n  );\n}\n";
+    const endIndex = dashboard.lastIndexOf(endMarker);
+    if (endIndex >= 0) {
+      dashboard = dashboard.slice(0, endIndex) + "\n    </>" + dashboard.slice(endIndex);
+    }
+  }
 }
 
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
