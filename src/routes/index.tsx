@@ -45,7 +45,6 @@ function Landing() {
         <section className="mt-20 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{FEATURES.map((f) => <article key={f.title} className="glass-panel p-6"><f.icon className="h-6 w-6 text-primary" /><h2 className="mt-4 font-display text-base font-semibold">{f.title}</h2><p className="mt-1.5 text-sm text-muted-foreground">{f.body}</p></article>)}</section>
         <section className="glass-panel mt-20 flex flex-col items-center gap-4 p-10 text-center"><h2 className="max-w-lg text-2xl font-bold sm:text-3xl">Your audience clicks once. Make it count.</h2><p className="max-w-md text-sm text-muted-foreground">Free to start. Upgradeable to Pro for premium badges and extras.</p><Link to="/auth" search={{ mode: "signup" }} className="btn-primary">Build my page</Link></section>
       </main>
-      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">© {new Date().getFullYear()} <span className="spider-brand">Spider</span> Wensors — made for creators</footer>
     </div>
   );
 }
