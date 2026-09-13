@@ -2,17 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
+const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const write = (p, s) => fs.writeFileSync(path.join(root, p), s, "utf8");
 
-function read(rel) {
-  return fs.readFileSync(path.join(root, rel), "utf8");
-}
-function write(rel, value) {
-  fs.writeFileSync(path.join(root, rel), value, "utf8");
-}
-
-// Keep the existing dashboard source intact while upgrading the preset theme
-// catalogue. Themes intentionally change the profile-card treatment only;
-// wallpaper/background remains controlled by the Background Wallpaper editor.
+// Preserve the full editor while ensuring every preset changes only card styling.
 const dashboardPath = "src/routes/dashboard.tsx";
 let dashboard = read(dashboardPath);
 const themeStart = dashboard.indexOf("const PRESET_THEMES = [");
@@ -46,7 +39,6 @@ if (themeStart >= 0) {
   }
 }
 
-// Theme selection must not overwrite the user's chosen wallpaper.
 dashboard = dashboard.replace(
   /const applyTheme = \(preset: \(typeof PRESET_THEMES\)\[number\]\) => \{[\s\S]*?\n  \};/,
   `const applyTheme = (preset: (typeof PRESET_THEMES)[number]) => {
@@ -61,48 +53,50 @@ dashboard = dashboard.replace(
 );
 write(dashboardPath, dashboard);
 
-// Make social changes durable immediately, while keeping the dashboard's
-// optimistic update/preview behavior. This fixes mobile users losing a newly
-// added social link before the dashboard autosave fires.
-const socialPath = "src/components/SocialLinksEditor.tsx";
-let social = read(socialPath);
-social = social.replace(
-  'import { uploadMedia, type SocialLink, type SocialPlatform } from "@/lib/bio";',
-  'import { db, uploadMedia, type SocialLink, type SocialPlatform } from "@/lib/bio";',
-);
-social = social.replace(
-  '  getPlatformConfig,\n  formatSocialUrl,',
-  '  getPlatformConfig,\n  getPlatformIconUrl,\n  formatSocialUrl,',
-);
-social = social.replace(
-  '  onChange: (links: SocialLink[]) => void;',
-  '  onChange: (links: SocialLink[]) => void;',
-);
-social = social.replace(
-  '  onChange,\n  accentColor = "#3b82f6",',
-  '  onChange: parentOnChange,\n  accentColor = "#3b82f6",',
-);
-const anchor = '  const currentPlatformConfig = getPlatformConfig(selectedPlatform);';
-if (!social.includes('const commitSocialLinks = async')) {
-  social = social.replace(
-    anchor,
-    `${anchor}\n\n  const commitSocialLinks = async (updated: SocialLink[]) => {\n    parentOnChange(updated);\n    if (!userId || userId === "default") return;\n    try {\n      const { error } = await db.from("profiles").update({ social_links: updated }).eq("id", userId);\n      if (error) toast.error("Social link could not be saved: " + (error.message || "database error"));\n      else {\n        window.dispatchEvent(new CustomEvent("halo-store-updated"));\n        try { localStorage.setItem("halo_sync_tick", String(Date.now())); } catch {}\n      }\n    } catch (error) {\n      toast.error(error instanceof Error ? "Social link could not be saved: " + error.message : "Social link could not be saved");\n    }\n  };`,
-  );
-}
-social = social.replace(/onChange\(/g, 'commitSocialLinks(');
-social = social.replace(
-  '    parentOnChange(updated);',
-  '    parentOnChange(updated);',
-);
-// The global replacement above also touches the helper name only if it matched
-// its call syntax; keep the helper declaration stable.
-social = social.replace('const commitSocialLinks = async (updated: SocialLink[]) => {\n    parentOnChange(updated);', 'const commitSocialLinks = async (updated: SocialLink[]) => {\n    parentOnChange(updated);');
-// Standard platform entries get a real brand icon URL; existing custom icons
-// remain untouched.
-social = social.replace(
-  '      platform: selectedPlatform,\n      url: formatted,\n      active: true,',
-  '      platform: selectedPlatform,\n      url: formatted,\n      icon_url: getPlatformIconUrl(selectedPlatform),\n      active: true,',
-);
-write(socialPath, social);
+// The wallpaper is independent from the card theme. Resolve light/dark from
+// the selected theme's persisted card signature, so Pure Light stays light
+// even when the user uses a dark image/video wallpaper.
+const profileViewPath = "src/components/ProfileView.tsx";
+let profileView = read(profileViewPath);
+const oldLight = '  const isLightTheme = profile.background_type === "color" && luminance(themeBackground) > 0.58;';
+const newLight = `  const themeSignature = [String(profile.accent_color || "").toLowerCase(), Number(profile.card_opacity || 0).toFixed(2), String(profile.card_blur ?? ""), String(profile.card_radius ?? "")].join("|");
+  const isLightTheme = new Set(["#2563eb|0.86|18|24", "#dc2626|0.90|14|20", "#334155|0.84|18|22"]).has(themeSignature);`;
+if (profileView.includes(oldLight)) profileView = profileView.replace(oldLight, newLight);
+write(profileViewPath, profileView);
 
-console.log("Spider Wensors build preparation complete");
+// Never hydrate a public profile from the editor's global localStorage keys.
+// Those keys can belong to a different logged-in user and caused names/links
+// to merge between profiles. Public URLs always read their own DB record.
+const publicPath = "src/routes/$username.tsx";
+let publicProfile = read(publicPath);
+const effectStart = publicProfile.indexOf("  useEffect(() => {\n    const applyLocal");
+const effectEndMarker = "\n\n  const handleEnter = async () => {";
+const effectEnd = publicProfile.indexOf(effectEndMarker, effectStart);
+if (effectStart >= 0 && effectEnd > effectStart) {
+  const cleanEffect = `  useEffect(() => {
+    let disposed = false;
+    const refreshPublicProfile = async () => {
+      try {
+        const fresh = await fetchProfileByUsername(profile.username);
+        if (!disposed && fresh?.profile) {
+          setProfile(fresh.profile);
+          setLinks(fresh.links);
+        }
+      } catch (err) {
+        console.warn("Could not refresh public profile:", err);
+      }
+    };
+    window.addEventListener("halo-store-updated", refreshPublicProfile);
+    window.addEventListener("focus", refreshPublicProfile);
+    void refreshPublicProfile();
+    return () => {
+      disposed = true;
+      window.removeEventListener("halo-store-updated", refreshPublicProfile);
+      window.removeEventListener("focus", refreshPublicProfile);
+    };
+  }, [profile.username]);`;
+  publicProfile = publicProfile.slice(0, effectStart) + cleanEffect + publicProfile.slice(effectEnd);
+}
+write(publicPath, publicProfile);
+
+console.log("Spider Wensors build preparation complete: themes are persistent and public profiles are isolated");
