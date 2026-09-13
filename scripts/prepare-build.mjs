@@ -52,24 +52,19 @@ dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
 );
 
-// Mount the badge tab portal inside Dashboard itself. The portal watches the
-// real four-tab editor bar and inserts Badges immediately after Media & FX.
 if (!dashboard.includes("<DashboardBadgesPortal profile={profile} />")) {
   dashboard = dashboard.replace(
     'import { SocialLinksEditor } from "@/components/SocialLinksEditor";',
     'import { SocialLinksEditor } from "@/components/SocialLinksEditor";\nimport { DashboardBadgesPortal } from "@/components/DashboardBadgesPortal";',
   );
   const dashboardStart = dashboard.indexOf("function Dashboard()");
-  const returnIndex = dashboard.indexOf("  return (", dashboardStart);
-  if (dashboardStart >= 0 && returnIndex >= 0) {
-    dashboard = dashboard.slice(0, returnIndex) + "  const badgePortal = <DashboardBadgesPortal profile={profile} />;\n\n" + dashboard.slice(returnIndex);
-    dashboard = dashboard.replace("  return (", "  return (\n    <>\n      {badgePortal}", 1);
-    // Close the fragment immediately before Dashboard's final return element.
+  const returnIndex = dashboard.lastIndexOf("\n  return", dashboard.length);
+  if (dashboardStart >= 0 && returnIndex > dashboardStart) {
+    dashboard = dashboard.slice(0, returnIndex) + "\n  const badgePortal = <DashboardBadgesPortal profile={profile} />;" + dashboard.slice(returnIndex);
+    dashboard = dashboard.replace("\n  return", "\n  return (\n    <>\n      {badgePortal}\n", 1);
     const endMarker = "\n  );\n}\n";
     const endIndex = dashboard.lastIndexOf(endMarker);
-    if (endIndex >= 0) {
-      dashboard = dashboard.slice(0, endIndex) + "\n    </>" + dashboard.slice(endIndex);
-    }
+    if (endIndex >= 0) dashboard = dashboard.slice(0, endIndex) + "\n    </>" + dashboard.slice(endIndex);
   }
 }
 
