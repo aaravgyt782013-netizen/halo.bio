@@ -46,7 +46,7 @@ function BadgeEditor() {
   const navigate = useNavigate();
   const { badgeId } = Route.useParams();
   const { user, loading } = useAuth();
-  const { profile: myProfile, loading: profileLoading } = useMyProfile(user?.id);
+  const { profile: myProfile } = useMyProfile(user?.id);
   const isAdmin = useIsAdmin(user?.id, user?.email);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [owner, setOwner] = useState<Profile | null>(null);
@@ -56,29 +56,27 @@ function BadgeEditor() {
 
   useEffect(() => { if (!loading && !user) navigate({ to: "/auth" }); }, [loading, user, navigate]);
   useEffect(() => {
-    if (!isAdmin || !user || profileLoading) return;
+    if (isAdmin !== true || !user) return;
     let cancelled = false;
     const fallback = PROFILE_BADGES.find((item) => item.id === badgeId) ?? null;
     if (fallback) {
-      setBadge(fallback);
-      setName(fallback.name); setDescription(fallback.description || ""); setIcon(fallback.icon || "award"); setEmoji(fallback.emoji || ""); setImageUrl(fallback.imageUrl || ""); setColor(fallback.color || "#ef4444"); setGlowColor(fallback.glowColor || fallback.color || "#ef4444");
+      setBadge(fallback); setName(fallback.name); setDescription(fallback.description || ""); setIcon(fallback.icon || "award"); setEmoji(fallback.emoji || ""); setImageUrl(fallback.imageUrl || ""); setColor(fallback.color || "#ef4444"); setGlowColor(fallback.glowColor || fallback.color || "#ef4444");
     }
     void loadAdminProfiles().then((rows) => {
       if (cancelled) return;
       const ownerData = rows.find((p) => p.id === user.id) ?? myProfile ?? null;
       const definitions = mergeDefinitions(readDefinitions(ownerData?.social_links));
       const found = definitions.find((item) => item.id === badgeId) ?? fallback;
-      setOwner(ownerData); setProfiles(rows); setBadge(found);
-      if (found) { setName(found.name); setDescription(found.description || ""); setIcon(found.icon || "award"); setEmoji(found.emoji || ""); setImageUrl(found.imageUrl || ""); setColor(found.color || "#ef4444"); setGlowColor(found.glowColor || found.color || "#ef4444"); }
+      if (ownerData) setOwner(ownerData);
+      setProfiles(rows);
+      if (found) {
+        setBadge(found); setName(found.name); setDescription(found.description || ""); setIcon(found.icon || "award"); setEmoji(found.emoji || ""); setImageUrl(found.imageUrl || ""); setColor(found.color || "#ef4444"); setGlowColor(found.glowColor || found.color || "#ef4444");
+      }
     }).catch((error) => {
-      if (cancelled) return;
-      console.warn("Admin profile API unavailable; using current profile fallback:", error);
-      setOwner(myProfile ?? null);
-      setProfiles([]);
-      if (!fallback) setBadge(null);
+      if (!cancelled) console.warn("Admin profile API unavailable; editor will remain usable:", error);
     }).finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [isAdmin, user, badgeId, myProfile, profileLoading]);
+  }, [isAdmin, user, badgeId, myProfile]);
 
   const assigned = useMemo(() => new Set(profiles.filter((profile) => extractBadges(profile.social_links).some((item) => item.id === badgeId)).map((profile) => profile.id)), [profiles, badgeId]);
   const visibleProfiles = profiles.filter((profile) => `${profile.username ?? ""} ${profile.display_name ?? ""}`.toLowerCase().includes(query.toLowerCase()));
@@ -110,10 +108,11 @@ function BadgeEditor() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update player badge"); }
   };
 
-  if (loading || isAdmin === null || profileLoading || busy) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-  if (!isAdmin || !badge) return <div className="flex min-h-screen items-center justify-center p-5"><div className="glass-panel p-8 text-center"><h1 className="text-xl font-bold">Badge not found</h1><Link to="/admin-badges" className="btn-primary mt-5 inline-flex">Back to badges</Link></div></div>;
+  if (loading || isAdmin === null || busy) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  if (!isAdmin) return <div className="flex min-h-screen items-center justify-center p-5"><div className="glass-panel p-8 text-center"><h1 className="text-xl font-bold">Admin only</h1><Link to="/admin-badges" className="btn-primary mt-5 inline-flex">Back to badges</Link></div></div>;
+  if (!badge) return <div className="flex min-h-screen items-center justify-center p-5"><div className="glass-panel p-8 text-center"><h1 className="text-xl font-bold">Badge not found</h1><Link to="/admin-badges" className="btn-primary mt-5 inline-flex">Back to badges</Link></div></div>;
 
-  return <div className="min-h-screen bg-[#070707] text-white"><header className="sticky top-0 z-20 border-b border-white/10 bg-black/80 px-4 py-4 backdrop-blur-xl"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><Link to="/admin-badges" className="btn-ghost"><ArrowLeft className="h-4 w-4" /> Badges</Link><div className="flex min-w-0 items-center gap-2"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border" style={{ color, borderColor: `${glowColor}90`, boxShadow: `0 0 14px ${glowColor}90, 0 0 34px ${glowColor}55` }}>{emoji || <Award className="h-5 w-5" />}</div><div className="min-w-0"><h1 className="truncate font-display font-bold">Edit {badge.name}</h1><p className="text-[11px] text-white/45">Badge settings & player assignment</p></div></div><button type="button" onClick={() => void saveBadge()} disabled={saving} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button></div></header>
+  return <div className="min-h-screen bg-[#070707] text-white"><header className="sticky top-0 z-20 border-b border-white/10 bg-black/80 px-4 py-4 backdrop-blur-xl"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><Link to="/admin-badges" className="btn-ghost"><ArrowLeft className="h-4 w-4" /> Badges</Link><div className="flex min-w-0 items-center gap-2"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border" style={{ color, borderColor: `${glowColor}90`, boxShadow: `0 0 14px ${glowColor}90, 0 0 34px ${glowColor}55` }}>{emoji || <Award className="h-5 w-5" />}</div><div className="min-w-0"><h1 className="truncate font-display font-bold">Edit {badge.name}</h1><p className="text-[11px] text-white/45">Badge settings & player assignment</p></div></div><button type="button" onClick={() => void saveBadge()} disabled={saving || !owner} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button></div></header>
     <main className="mx-auto max-w-5xl space-y-5 px-4 py-7"><section className="rounded-2xl border border-white/10 bg-white/[.035] p-5"><h2 className="font-display text-lg font-bold">Badge details</h2><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs text-white/55">Name<input className="field mt-1 w-full" value={name} onChange={(e) => setName(e.target.value)} /></label><label className="text-xs text-white/55">Icon key<input className="field mt-1 w-full" value={icon} onChange={(e) => setIcon(e.target.value)} /></label><label className="text-xs text-white/55 sm:col-span-2">Description<textarea className="field mt-1 min-h-20 w-full" value={description} onChange={(e) => setDescription(e.target.value)} /></label><label className="text-xs text-white/55">Emoji<input className="field mt-1 w-full" value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="Optional" /></label><label className="text-xs text-white/55">Image URL<input className="field mt-1 w-full" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional" /></label><label className="text-xs text-white/55">Badge color<div className="mt-1 flex gap-2"><input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-12" /><input className="field w-full font-mono" value={color} onChange={(e) => setColor(e.target.value)} /></div></label><label className="text-xs text-white/55">Glow color<div className="mt-1 flex gap-2"><input type="color" value={glowColor} onChange={(e) => setGlowColor(e.target.value)} className="h-10 w-12" /><input className="field w-full font-mono" value={glowColor} onChange={(e) => setGlowColor(e.target.value)} /></div></label></div></section>
     <section className="rounded-2xl border border-white/10 bg-white/[.035] p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">{name || badge.name} — Assign to players</h2><p className="text-xs text-white/45">Search a username or display name and tap a player to assign or remove this badge.</p></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2"><Search className="h-4 w-4 text-white/40" /><input className="bg-transparent text-sm outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Username or display name" /></div></div><div className="mt-4 space-y-2">{visibleProfiles.map((profile) => { const has = assigned.has(profile.id); return <button key={profile.id} type="button" onClick={() => void togglePlayer(profile)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${has ? "border-red-500/40 bg-red-500/[.08]" : "border-white/10 bg-black/20 hover:bg-white/[.04]"}`}><div className="h-9 w-9 overflow-hidden rounded-full bg-white/10">{profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs font-bold">{(profile.display_name ?? profile.username ?? "?").slice(0, 1).toUpperCase()}</div>}</div><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">@{profile.username ?? "no-username"}</div><div className="truncate text-xs text-white/45">{profile.display_name ?? "Unnamed"}</div></div>{has ? <span className="inline-flex items-center gap-1 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold"><Check className="h-3 w-3" /> Assigned</span> : <span className="text-xs text-white/40">Assign</span>}</button>; })}{visibleProfiles.length === 0 && <p className="py-8 text-center text-sm text-white/40">No players found.</p>}</div></section></main></div>;
 }
