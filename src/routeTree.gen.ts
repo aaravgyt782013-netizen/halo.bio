@@ -17,7 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BadgeStudioRouteImport } from './routes/badge-studio'
 import { Route as BadgesRouteImport } from './routes/badges'
 import { Route as AdminBadgesRouteImport } from './routes/admin-badges'
-import { Route as AdminBadgesBadgeIdRouteImport } from './routes/admin-badges/$badgeId'
+import { Route as AdminBadgesEditRouteImport } from './routes/admin-badges/edit'
 
 const IndexRoute = IndexRouteImport.update({ id: '/', path: '/', getParentRoute: () => rootRouteImport } as any)
 const UsernameRoute = UsernameRouteImport.update({ id: '/$username', path: '/$username', getParentRoute: () => rootRouteImport } as any)
@@ -28,7 +28,7 @@ const DashboardRoute = DashboardRouteImport.update({ id: '/dashboard', path: '/d
 const BadgeStudioRoute = BadgeStudioRouteImport.update({ id: '/badge-studio', path: '/badge-studio', getParentRoute: () => rootRouteImport } as any)
 const BadgesRoute = BadgesRouteImport.update({ id: '/badges', path: '/badges', getParentRoute: () => rootRouteImport } as any)
 const AdminBadgesRoute = AdminBadgesRouteImport.update({ id: '/admin-badges', path: '/admin-badges', getParentRoute: () => rootRouteImport } as any)
-const AdminBadgesBadgeIdRoute = AdminBadgesBadgeIdRouteImport.update({ id: '/admin-badges/$badgeId', path: '/$badgeId', getParentRoute: () => AdminBadgesRoute } as any)
+const AdminBadgesEditRoute = AdminBadgesEditRouteImport.update({ id: '/admin-badges/edit', path: '/edit', getParentRoute: () => AdminBadgesRoute } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -40,7 +40,7 @@ export interface FileRoutesByFullPath {
   '/badge-studio': typeof BadgeStudioRoute
   '/badges': typeof BadgesRoute
   '/admin-badges': typeof AdminBadgesRoute
-  '/admin-badges/$badgeId': typeof AdminBadgesBadgeIdRoute
+  '/admin-badges/edit': typeof AdminBadgesEditRoute
 }
 export interface FileRoutesByTo extends FileRoutesByFullPath {}
 export interface FileRoutesById {
@@ -54,14 +54,14 @@ export interface FileRoutesById {
   '/badge-studio': typeof BadgeStudioRoute
   '/badges': typeof BadgesRoute
   '/admin-badges': typeof AdminBadgesRoute
-  '/admin-badges/$badgeId': typeof AdminBadgesBadgeIdRoute
+  '/admin-badges/edit': typeof AdminBadgesEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
+  fullPaths: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/edit'
   fileRoutesByTo: FileRoutesByTo
-  id: '__root__' | '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
-  to: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
+  id: '__root__' | '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/edit'
+  to: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -74,7 +74,7 @@ export interface RootRouteChildren {
   BadgeStudioRoute: typeof BadgeStudioRoute
   BadgesRoute: typeof BadgesRoute
   AdminBadgesRoute: typeof AdminBadgesRoute
-  AdminBadgesBadgeIdRoute: typeof AdminBadgesBadgeIdRoute
+  AdminBadgesEditRoute: typeof AdminBadgesEditRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -88,10 +88,10 @@ declare module '@tanstack/react-router' {
     '/badge-studio': { id: '/badge-studio'; path: '/badge-studio'; fullPath: '/badge-studio'; preLoaderRoute: typeof BadgeStudioRouteImport; parentRoute: typeof rootRouteImport }
     '/badges': { id: '/badges'; path: '/badges'; fullPath: '/badges'; preLoaderRoute: typeof BadgesRouteImport; parentRoute: typeof rootRouteImport }
     '/admin-badges': { id: '/admin-badges'; path: '/admin-badges'; fullPath: '/admin-badges'; preLoaderRoute: typeof AdminBadgesRouteImport; parentRoute: typeof rootRouteImport }
-    '/admin-badges/$badgeId': { id: '/admin-badges/$badgeId'; path: '/$badgeId'; fullPath: '/admin-badges/$badgeId'; preLoaderRoute: typeof AdminBadgesBadgeIdRouteImport; parentRoute: typeof AdminBadgesRoute }
+    '/admin-badges/edit': { id: '/admin-badges/edit'; path: '/edit'; fullPath: '/admin-badges/edit'; preLoaderRoute: typeof AdminBadgesEditRouteImport; parentRoute: typeof AdminBadgesRoute }
   }
 }
-const rootRouteChildren: RootRouteChildren = { IndexRoute, UsernameRoute, AdminRoute, AuthRoute, ClaimRoute, DashboardRoute, BadgeStudioRoute, BadgesRoute, AdminBadgesRoute, AdminBadgesBadgeIdRoute }
+const rootRouteChildren: RootRouteChildren = { IndexRoute, UsernameRoute, AdminRoute, AuthRoute, ClaimRoute, DashboardRoute, BadgeStudioRoute, BadgesRoute, AdminBadgesRoute, AdminBadgesEditRoute }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
