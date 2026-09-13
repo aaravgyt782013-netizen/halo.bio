@@ -91,7 +91,7 @@ declare module '@tanstack/react-router' {
     '/admin-badges/$badgeId': { id: '/admin-badges/$badgeId'; path: '/$badgeId'; fullPath: '/admin-badges/$badgeId'; preLoaderRoute: typeof AdminBadgesBadgeIdRouteImport; parentRoute: typeof AdminBadgesRoute }
   }
 }
-const rootRouteChildren: RootRouteChildren = { IndexRoute, UsernameRoute, AdminRoute, AuthRoute, ClaimRoute, DashboardRoute, BadgeStudioRoute, BadgesRoute, AdminBadgesRoute }
+const rootRouteChildren: RootRouteChildren = { IndexRoute, UsernameRoute, AdminRoute, AuthRoute, ClaimRoute, DashboardRoute, BadgeStudioRoute, BadgesRoute, AdminBadgesRoute, AdminBadgesBadgeIdRoute }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
