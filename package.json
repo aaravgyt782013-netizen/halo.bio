@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 3000",
-    "build": "node scripts/prepare-build.mjs && vite build",
-    "build:dev": "node scripts/prepare-build.mjs && vite build --mode development",
+    "build": "node scripts/prepare-build.mjs && node scripts/enhance-profile-ui.mjs && vite build",
+    "build:dev": "node scripts/prepare-build.mjs && node scripts/enhance-profile-ui.mjs && vite build --mode development",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "eslint .",
     "format": "prettier --write ."
@@ -78,7 +78,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
-    "eslint-plugin-prettier": "^5.2.6",
+    "eslint-plugin-prettier": "^5.2.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
