@@ -54,9 +54,6 @@ dashboard = dashboard.replace(
 
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
 
-// Media: allow image/video selections up to 10MB in the app. Vercel's
-// function ingress still has a 4.5MB request-body ceiling, so deployments
-// should use direct object storage for files above that platform ceiling.
 const bioPath = path.join(root, "src/lib/bio.ts");
 let bio = fs.readFileSync(bioPath, "utf8");
 bio = bio.replace(
@@ -77,9 +74,6 @@ server = server.replace(
 );
 fs.writeFileSync(serverPath, server, "utf8");
 
-// Badge deletion: staff/admin can remove any badge, including built-ins.
-// A tombstone definition keeps a deleted built-in from being recreated by
-// mergeDefinitions, while the editor removes the badge from every profile.
 const badgeEditorPath = path.join(root, "src/routes/admin-badges/$badgeId.tsx");
 let badgeEditor = fs.readFileSync(badgeEditorPath, "utf8");
 badgeEditor = badgeEditor.replace(
@@ -105,5 +99,13 @@ badgeList = badgeList.replace(
   '  const deleted = new Set(saved.filter((b) => (b as ProfileBadge & { deleted?: boolean }).deleted).map((b) => b.id));\n  deleted.forEach((id) => map.delete(id));\n  saved.filter((b) => !(b as ProfileBadge & { deleted?: boolean }).deleted).forEach((b) => map.set(b.id, b));\n  return [...map.values()];',
 );
 fs.writeFileSync(badgeListPath, badgeList, "utf8");
+
+const publicBadgesPath = path.join(root, "src/routes/badges.tsx");
+let publicBadges = fs.readFileSync(publicBadgesPath, "utf8");
+publicBadges = publicBadges.replace(
+  'function defs(profiles: Profile[]) { const map = new Map(PROFILE_BADGES.map((b) => [b.id, b])); profiles.flatMap((p) => p.social_links ?? []).filter((x: SocialLink) => x.platform === DEFINITION_PLATFORM).forEach((x) => { try { const b = JSON.parse(x.icon_url || "") as ProfileBadge; if (b?.id && b?.name) map.set(b.id, b); } catch {} }); return [...map.values()]; }',
+  'function defs(profiles: Profile[]) { const map = new Map(PROFILE_BADGES.map((b) => [b.id, b])); const deleted = new Set<string>(); profiles.flatMap((p) => p.social_links ?? []).filter((x: SocialLink) => x.platform === DEFINITION_PLATFORM).forEach((x) => { try { const b = JSON.parse(x.icon_url || "") as ProfileBadge & { deleted?: boolean }; if (b?.id && b.deleted) deleted.add(b.id); else if (b?.id && b?.name) map.set(b.id, b); } catch {} }); deleted.forEach((id) => map.delete(id)); return [...map.values()]; }',
+);
+fs.writeFileSync(publicBadgesPath, publicBadges, "utf8");
 
 console.log("Spider Wensors build preparation complete (themes, 10MB media validation, badge deletion)");
