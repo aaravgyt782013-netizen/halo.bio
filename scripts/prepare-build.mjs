@@ -52,21 +52,5 @@ dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
 );
 
-if (!dashboard.includes("<DashboardBadgesPortal profile={profile} />")) {
-  dashboard = dashboard.replace(
-    'import { SocialLinksEditor } from "@/components/SocialLinksEditor";',
-    'import { SocialLinksEditor } from "@/components/SocialLinksEditor";\nimport { DashboardBadgesPortal } from "@/components/DashboardBadgesPortal";',
-  );
-  const dashboardStart = dashboard.indexOf("function Dashboard()");
-  const returnIndex = dashboard.lastIndexOf("\n  return", dashboard.length);
-  if (dashboardStart >= 0 && returnIndex > dashboardStart) {
-    dashboard = dashboard.slice(0, returnIndex) + "\n  const badgePortal = <DashboardBadgesPortal profile={profile} />;" + dashboard.slice(returnIndex);
-    dashboard = dashboard.replace("\n  return (", "\n  return (\n    <>\n      {badgePortal}\n", 1);
-    const endMarker = "\n  );\n}\n";
-    const endIndex = dashboard.lastIndexOf(endMarker);
-    if (endIndex >= 0) dashboard = dashboard.slice(0, endIndex) + "\n    </>" + dashboard.slice(endIndex);
-  }
-}
-
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
-console.log("Spider Wensors build preparation complete (themes + dashboard badges)");
+console.log("Spider Wensors build preparation complete (themes)");
