@@ -32,7 +32,8 @@ if (themeStart >= 0) {
   { name: "Black & White", bgType: "color" as const, bgValue: "#0a0a0a", accent: "#f8fafc", opacity: 0.82, blur: 16, radius: 18 },
   { name: "Red & Blue", bgType: "color" as const, bgValue: "#090b17", accent: "#3b82f6", opacity: 0.74, blur: 24, radius: 26 },
   { name: "Card Mode", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
-  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },`;
+  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
+];`;
     dashboard = dashboard.slice(0, themeStart) + themes + dashboard.slice(themeEnd + 2);
   }
 }
@@ -66,13 +67,14 @@ dashboard = dashboard.replace(
   '<div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0"><div className="flex items-center justify-between gap-2"><span className="label-text">Card Info</span><span className="text-[10px] text-muted-foreground">Opacity, radius, and blur</span></div>',
 );
 
-// Use the Spider Wensors brand in the share dialog instead of the old Halo wording.
 dashboard = dashboard.replace('Share your Halo page', 'Share your Wensors page');
 dashboard = dashboard.replace('Your Halo builder:', 'Your Wensors builder:');
 dashboard = dashboard.replace('copy your link.', 'copy your Wensors profile link.');
 dashboard = dashboard.replace('Builder — Halo bio page', 'Builder — Spider Wensors');
 dashboard = dashboard.replace('Edit links, background, glass styling and music for your Halo bio page', 'Edit links, background, glass styling and music for your Spider Wensors profile');
-dashboard = dashboard.replace('Your Halo builder:', 'Your Wensors builder:');
+
+dashboard = dashboard.replace('Halo bio page', 'Spider Wensors profile');
+dashboard = dashboard.replace('Halo builder', 'Wensors builder');
 
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
 
@@ -131,21 +133,6 @@ badgeEditor = badgeEditor.replace(
 );
 fs.writeFileSync(badgeEditorPath, badgeEditor, "utf8");
 
-// Make badge cards explicitly navigate on tap/click. This avoids mobile tap issues with the Link wrapper.
-const badgeListPath = path.join(root, "src/routes/admin-badges.tsx");
-let badgeList = fs.readFileSync(badgeListPath, "utf8");
-badgeList = badgeList.replace(
-  '  saved.forEach((b) => map.set(b.id, b));\n  return [...map.values()];',
-  '  const deleted = new Set(saved.filter((b) => (b as ProfileBadge & { deleted?: boolean }).deleted).map((b) => b.id));\n  deleted.forEach((id) => map.delete(id));\n  saved.filter((b) => !(b as ProfileBadge & { deleted?: boolean }).deleted).forEach((b) => map.set(b.id, b));\n  return [...map.values()];',
-);
-const badgeCardOpen = 'onClick={() => navigate({ to: "/admin-badges/$badgeId", params: { badgeId: badge.id } })}';
-badgeList = badgeList.replace(
-  '<Link key={badge.id} to="/admin-badges/$badgeId" params={{ badgeId: badge.id }} className="group rounded-2xl',
-  `<button key={badge.id} type="button" ${badgeCardOpen} className="group w-full text-left rounded-2xl`,
-);
-badgeList = badgeList.replace('</Link>)}</div></main></div>;', '</button>)}</div></main></div>;');
-fs.writeFileSync(badgeListPath, badgeList, "utf8");
-
 const publicBadgesPath = path.join(root, "src/routes/badges.tsx");
 let publicBadges = fs.readFileSync(publicBadgesPath, "utf8");
 publicBadges = publicBadges.replace(
@@ -154,4 +141,4 @@ publicBadges = publicBadges.replace(
 );
 fs.writeFileSync(publicBadgesPath, publicBadges, "utf8");
 
-console.log("Spider Wensors build preparation complete (themes, 10MB media validation, restored background/card sections, badge deletion, mobile badge navigation, Wensors share branding)");
+console.log("Spider Wensors build preparation complete");
