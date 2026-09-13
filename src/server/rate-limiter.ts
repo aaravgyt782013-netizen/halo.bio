@@ -52,6 +52,26 @@ export function checkRateLimit(
 }
 
 /**
+ * Owner authorization is email-based as well as role-based. The owner account
+ * must stay an admin even if an older session or user document still contains
+ * the legacy "user" role. This is checked server-side so UI-only admin access
+ * cannot be bypassed or rejected by mutation endpoints.
+ */
+const OWNER_EMAIL = "aaravg78201333@gmail.com";
+const originalGetSession = serverStorage.getSession.bind(serverStorage);
+serverStorage.getSession = async (token: string) => {
+  const session = await originalGetSession(token);
+  if (!session) return null;
+
+  const user = await serverStorage.getUserById(session.user_id);
+  if (user?.email?.trim().toLowerCase() === OWNER_EMAIL) {
+    return { ...session, role: "admin" as const };
+  }
+
+  return session;
+};
+
+/**
  * Extend the existing admin profile mutation endpoint with a password-only
  * operation. This keeps password hashing server-side and never stores a
  * plaintext password in a profile document.
