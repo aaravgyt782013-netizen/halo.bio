@@ -32,8 +32,7 @@ if (themeStart >= 0) {
   { name: "Black & White", bgType: "color" as const, bgValue: "#0a0a0a", accent: "#f8fafc", opacity: 0.82, blur: 16, radius: 18 },
   { name: "Red & Blue", bgType: "color" as const, bgValue: "#090b17", accent: "#3b82f6", opacity: 0.74, blur: 24, radius: 26 },
   { name: "Card Mode", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
-  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
-];`;
+  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },`;
     dashboard = dashboard.slice(0, themeStart) + themes + dashboard.slice(themeEnd + 2);
   }
 }
@@ -50,6 +49,38 @@ dashboard = dashboard.replace(
 dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,',
   '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
+);
+
+// Keep the upload controls consistent with the 10MB media limit.
+dashboard = dashboard.replace(
+  'Upload Background Video (Up to 1MB)',
+  'Upload Background Video (Up to 10MB)',
+);
+dashboard = dashboard.replace(
+  'Supports uploaded videos up to 1MB with high-performance',
+  'Supports uploaded videos up to 10MB with high-performance',
+);
+dashboard = dashboard.replace(
+  'file.size > 1 * 1024 * 1024',
+  'file.size > 10 * 1024 * 1024',
+);
+dashboard = dashboard.replace(
+  'toast.error("Video exceeds 1MB limit")',
+  'toast.error("Video exceeds 10MB limit")',
+);
+
+// Explicit section labels keep the previously available background/card controls visible.
+dashboard = dashboard.replace(
+  '<span className="label-text">Background Wallpaper</span>',
+  '<div className="flex items-center justify-between gap-2"><span className="label-text">Background Info</span><span className="text-[10px] text-muted-foreground">Wallpaper, image, or video</span></div>',
+);
+dashboard = dashboard.replace(
+  '              {/* Glass styling controls */}',
+  '              {/* Card Info / Glass styling controls */}',
+);
+dashboard = dashboard.replace(
+  '<div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0">',
+  '<div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0"><div className="flex items-center justify-between gap-2"><span className="label-text">Card Info</span><span className="text-[10px] text-muted-foreground">Opacity, radius, and blur</span></div>',
 );
 
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
@@ -84,7 +115,27 @@ badgeEditor = badgeEditor.replace(
   '  saved.forEach((badge) => map.set(badge.id, badge));\n  return [...map.values()];',
   '  const deleted = new Set(saved.filter((badge) => (badge as ProfileBadge & { deleted?: boolean }).deleted).map((badge) => badge.id));\n  deleted.forEach((id) => map.delete(id));\n  saved.filter((badge) => !(badge as ProfileBadge & { deleted?: boolean }).deleted).forEach((badge) => map.set(badge.id, badge));\n  return [...map.values()];',
 );
-const deleteFn = `\n  const deleteBadge = async () => {\n    if (!user || !owner || !badge) return;\n    if (!window.confirm(\`Delete the badge "\${badge.name}"? It will be removed from every player.\`)) return;\n    setSaving(true);\n    try {\n      const definitions = mergeDefinitions(readDefinitions(owner.social_links)).filter((item) => item.id !== badge.id);\n      const tombstone = { ...badge, deleted: true } as ProfileBadge & { deleted: boolean };\n      await adminMutateProfile(owner.id, { social_links: definitionLinks(owner.social_links, [...definitions, tombstone]) });\n      await Promise.all(profiles.map((profile) => {\n        const current = extractBadges(profile.social_links);\n        if (!current.some((item) => item.id === badge.id)) return Promise.resolve();\n        return adminMutateProfile(profile.id, { social_links: mergeBadges(profile.social_links, current.filter((item) => item.id !== badge.id)) });\n      }));\n      toast.success(\`Deleted \${badge.name} from all players\`);\n      navigate({ to: "/admin-badges" });\n    } catch (error) {\n      toast.error(error instanceof Error ? error.message : "Could not delete badge");\n    } finally { setSaving(false); }\n  };\n`;
+const deleteFn = `
+  const deleteBadge = async () => {
+    if (!user || !owner || !badge) return;
+    if (!window.confirm(\`Delete the badge "\${badge.name}"? It will be removed from every player.\`)) return;
+    setSaving(true);
+    try {
+      const definitions = mergeDefinitions(readDefinitions(owner.social_links)).filter((item) => item.id !== badge.id);
+      const tombstone = { ...badge, deleted: true } as ProfileBadge & { deleted: boolean };
+      await adminMutateProfile(owner.id, { social_links: definitionLinks(owner.social_links, [...definitions, tombstone]) });
+      await Promise.all(profiles.map((profile) => {
+        const current = extractBadges(profile.social_links);
+        if (!current.some((item) => item.id === badge.id)) return Promise.resolve();
+        return adminMutateProfile(profile.id, { social_links: mergeBadges(profile.social_links, current.filter((item) => item.id !== badge.id)) });
+      }));
+      toast.success(\`Deleted \${badge.name} from all players\`);
+      navigate({ to: "/admin-badges" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete badge");
+    } finally { setSaving(false); }
+  };
+`;
 badgeEditor = badgeEditor.replace('  const togglePlayer = async (profile: Profile) => {', deleteFn + '\n  const togglePlayer = async (profile: Profile) => {');
 badgeEditor = badgeEditor.replace(
   '<button type="button" onClick={() => void saveBadge()} disabled={saving} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button>',
@@ -108,4 +159,4 @@ publicBadges = publicBadges.replace(
 );
 fs.writeFileSync(publicBadgesPath, publicBadges, "utf8");
 
-console.log("Spider Wensors build preparation complete (themes, 10MB media validation, badge deletion)");
+console.log("Spider Wensors build preparation complete (themes, 10MB media validation, restored background/card sections, badge deletion)");
