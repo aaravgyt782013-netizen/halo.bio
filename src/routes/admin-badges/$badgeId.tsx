@@ -4,21 +4,24 @@ import { ArrowLeft, Award, Check, Loader2, Save, Search } from "lucide-react";
 import { toast } from "sonner";
 import { type Profile, type SocialLink } from "@/lib/bio";
 import { extractBadges, mergeBadges, PROFILE_BADGES, type ProfileBadge } from "@/lib/profileBadges";
-import { useAuth, useIsAdmin } from "@/hooks/useAuth";
+import { useAuth, useIsAdmin, useMyProfile } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin-badges/$badgeId")({ component: BadgeEditor });
 const DEFINITION_PLATFORM = "__spider_badge_definition__";
 const ADMIN_HEADERS = { "Content-Type": "application/json", "X-Requested-With": "halo-app" };
 
-function readDefinitions(links?: SocialLink[] | null): ProfileBadge[] {
+type StoredBadge = ProfileBadge & { deleted?: boolean };
+function readDefinitions(links?: SocialLink[] | null): StoredBadge[] {
   return (links ?? []).flatMap((link) => {
     if (link.platform !== DEFINITION_PLATFORM) return [];
-    try { const badge = JSON.parse(link.icon_url || "") as ProfileBadge; return badge?.id && badge?.name ? [badge] : []; } catch { return []; }
+    try { const badge = JSON.parse(link.icon_url || "") as StoredBadge; return badge?.id && badge?.name ? [badge] : []; } catch { return []; }
   });
 }
-function mergeDefinitions(saved: ProfileBadge[]) {
+function mergeDefinitions(saved: StoredBadge[]) {
   const map = new Map(PROFILE_BADGES.map((badge) => [badge.id, badge]));
-  saved.forEach((badge) => map.set(badge.id, badge));
+  const deleted = new Set(saved.filter((badge) => badge.deleted).map((badge) => badge.id));
+  deleted.forEach((id) => map.delete(id));
+  saved.filter((badge) => !badge.deleted).forEach((badge) => map.set(badge.id, badge));
   return [...map.values()];
 }
 function definitionLinks(existing: SocialLink[] | null | undefined, badges: ProfileBadge[]): SocialLink[] {
@@ -43,27 +46,39 @@ function BadgeEditor() {
   const navigate = useNavigate();
   const { badgeId } = Route.useParams();
   const { user, loading } = useAuth();
+  const { profile: myProfile, loading: profileLoading } = useMyProfile(user?.id);
   const isAdmin = useIsAdmin(user?.id, user?.email);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [owner, setOwner] = useState<Profile | null>(null);
-  const [badge, setBadge] = useState<ProfileBadge | null>(null);
+  const [badge, setBadge] = useState<ProfileBadge | null>(() => PROFILE_BADGES.find((item) => item.id === badgeId) ?? null);
   const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [icon, setIcon] = useState("award"); const [emoji, setEmoji] = useState(""); const [imageUrl, setImageUrl] = useState(""); const [color, setColor] = useState("#ef4444"); const [glowColor, setGlowColor] = useState("#ef4444");
   const [query, setQuery] = useState(""); const [busy, setBusy] = useState(true); const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (!loading && !user) navigate({ to: "/auth" }); }, [loading, user, navigate]);
   useEffect(() => {
-    if (!isAdmin || !user) return;
+    if (!isAdmin || !user || profileLoading) return;
     let cancelled = false;
+    const fallback = PROFILE_BADGES.find((item) => item.id === badgeId) ?? null;
+    if (fallback) {
+      setBadge(fallback);
+      setName(fallback.name); setDescription(fallback.description || ""); setIcon(fallback.icon || "award"); setEmoji(fallback.emoji || ""); setImageUrl(fallback.imageUrl || ""); setColor(fallback.color || "#ef4444"); setGlowColor(fallback.glowColor || fallback.color || "#ef4444");
+    }
     void loadAdminProfiles().then((rows) => {
       if (cancelled) return;
-      const ownerData = rows.find((p) => p.id === user.id) ?? null;
+      const ownerData = rows.find((p) => p.id === user.id) ?? myProfile ?? null;
       const definitions = mergeDefinitions(readDefinitions(ownerData?.social_links));
-      const found = definitions.find((item) => item.id === badgeId) ?? null;
+      const found = definitions.find((item) => item.id === badgeId) ?? fallback;
       setOwner(ownerData); setProfiles(rows); setBadge(found);
       if (found) { setName(found.name); setDescription(found.description || ""); setIcon(found.icon || "award"); setEmoji(found.emoji || ""); setImageUrl(found.imageUrl || ""); setColor(found.color || "#ef4444"); setGlowColor(found.glowColor || found.color || "#ef4444"); }
-    }).catch((error) => { if (!cancelled) toast.error(error instanceof Error ? error.message : "Could not load admin data"); }).finally(() => { if (!cancelled) setBusy(false); });
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn("Admin profile API unavailable; using current profile fallback:", error);
+      setOwner(myProfile ?? null);
+      setProfiles([]);
+      if (!fallback) setBadge(null);
+    }).finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [isAdmin, user, badgeId]);
+  }, [isAdmin, user, badgeId, myProfile, profileLoading]);
 
   const assigned = useMemo(() => new Set(profiles.filter((profile) => extractBadges(profile.social_links).some((item) => item.id === badgeId)).map((profile) => profile.id)), [profiles, badgeId]);
   const visibleProfiles = profiles.filter((profile) => `${profile.username ?? ""} ${profile.display_name ?? ""}`.toLowerCase().includes(query.toLowerCase()));
@@ -95,7 +110,7 @@ function BadgeEditor() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update player badge"); }
   };
 
-  if (loading || isAdmin === null || busy) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  if (loading || isAdmin === null || profileLoading || busy) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   if (!isAdmin || !badge) return <div className="flex min-h-screen items-center justify-center p-5"><div className="glass-panel p-8 text-center"><h1 className="text-xl font-bold">Badge not found</h1><Link to="/admin-badges" className="btn-primary mt-5 inline-flex">Back to badges</Link></div></div>;
 
   return <div className="min-h-screen bg-[#070707] text-white"><header className="sticky top-0 z-20 border-b border-white/10 bg-black/80 px-4 py-4 backdrop-blur-xl"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3"><Link to="/admin-badges" className="btn-ghost"><ArrowLeft className="h-4 w-4" /> Badges</Link><div className="flex min-w-0 items-center gap-2"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border" style={{ color, borderColor: `${glowColor}90`, boxShadow: `0 0 14px ${glowColor}90, 0 0 34px ${glowColor}55` }}>{emoji || <Award className="h-5 w-5" />}</div><div className="min-w-0"><h1 className="truncate font-display font-bold">Edit {badge.name}</h1><p className="text-[11px] text-white/45">Badge settings & player assignment</p></div></div><button type="button" onClick={() => void saveBadge()} disabled={saving} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button></div></header>
