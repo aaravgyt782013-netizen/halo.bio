@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type SetStateAction } from "react";
 import { auth, db, type Profile, type AuthSession } from "@/lib/bio";
 
 export const OWNER_EMAIL = "aaravg78201333@gmail.com";
@@ -67,11 +67,12 @@ export function useAuth() {
 }
 
 export function useMyProfile(userId: string | undefined) {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfileState] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     if (!userId) {
-      setProfile(null);
+      setProfileState(null);
       setLoading(false);
       return;
     }
@@ -81,13 +82,13 @@ export function useMyProfile(userId: string | undefined) {
       try {
         const { data }: { data: Profile | null } = await db.from("profiles").select("*").eq("id", userId).maybeSingle();
         if (!cancelled) {
-          setProfile(data ?? null);
+          setProfileState(data ?? null);
           setLoading(false);
         }
       } catch (error) {
         console.warn("Could not load profile:", error);
         if (!cancelled) {
-          setProfile(null);
+          setProfileState(null);
           setLoading(false);
         }
       }
@@ -100,6 +101,27 @@ export function useMyProfile(userId: string | undefined) {
       if (typeof window !== "undefined") window.removeEventListener("halo-store-updated", handleUpdate);
     };
   }, [userId]);
+
+  // The editor used to expose React's setter directly. That meant a change could
+  // exist only in component state until another code path happened to save it.
+  // Keep the familiar setter API, but also persist every resulting profile to the
+  // authenticated server. This makes links/theme/background/media changes durable
+  // even if the user navigates away before the autosave timer fires.
+  const setProfile = (value: SetStateAction<Profile | null>) => {
+    setProfileState((previous) => {
+      const next = typeof value === "function" ? (value as (p: Profile | null) => Profile | null)(previous) : value;
+      if (next && userId && typeof window !== "undefined") {
+        window.clearTimeout((setProfile as typeof setProfile & { timer?: number }).timer);
+        (setProfile as typeof setProfile & { timer?: number }).timer = window.setTimeout(() => {
+          void db.from("profiles").update(next).eq("id", userId).then(({ error }) => {
+            if (error) console.warn("Profile autosave failed:", error);
+          });
+        }, 350);
+      }
+      return next;
+    });
+  };
+
   return { profile, setProfile, loading };
 }
 
@@ -117,8 +139,6 @@ export function useIsAdmin(userId: string | undefined, email?: string | null) {
       return;
     }
 
-    // Use the implemented getSession API instead of calling a missing auth.getUser()
-    // method. The old call threw a TypeError when the dashboard mounted.
     void auth.getSession().then(({ data }) => {
       if (cancelled) return;
       const currentEmail = (data.session?.user?.email ?? "").trim().toLowerCase();
