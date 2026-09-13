@@ -28,7 +28,7 @@ export const PROFILE_BADGES: ProfileBadge[] = [
   { id: "easter-2026", name: "Easter 2026", description: "Exclusive badge from the 2026 Easter event.", icon: "rabbit", color: "#9b7cff", glowColor: "#9b7cff" },
   { id: "christmas-2025", name: "Christmas 2025", description: "Exclusive badge from the 2025 winter event.", icon: "snowflake", color: "#72c7ff", glowColor: "#72c7ff" },
   { id: "easter-2025", name: "Easter 2025", description: "Exclusive badge from the 2025 Easter event.", icon: "egg", color: "#f6a6c1", glowColor: "#f6a6c1" },
-  { id: "christmas-2024", name: "Christmas 2024", description: "Exclusive badge from the 2025 winter event.", icon: "candy-cane", color: "#ef4444", glowColor: "#ef4444" },
+  { id: "christmas-2024", name: "Christmas 2024", description: "Exclusive badge from the 2024 winter event.", icon: "candy-cane", color: "#ef4444", glowColor: "#ef4444" },
   { id: "million", name: "The Million", description: "Celebration badge for 1M users.", icon: "satellite", color: "#65e6df", glowColor: "#65e6df" },
   { id: "winner", name: "Winner", description: "Win a Spider Website event.", icon: "trophy", color: "#facc15", glowColor: "#facc15" },
   { id: "second-place", name: "Second Place", description: "Get second place in a Spider Website event.", icon: "award", color: "#bdbdbd", glowColor: "#bdbdbd" },
