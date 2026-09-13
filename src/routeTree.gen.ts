@@ -60,8 +60,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
   id: '__root__' | '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
+  to: '/' | '/$username' | '/admin' | '/auth' | '/claim' | '/dashboard' | '/badge-studio' | '/badges' | '/admin-badges' | '/admin-badges/$badgeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -74,6 +74,7 @@ export interface RootRouteChildren {
   BadgeStudioRoute: typeof BadgeStudioRoute
   BadgesRoute: typeof BadgesRoute
   AdminBadgesRoute: typeof AdminBadgesRoute
+  AdminBadgesBadgeIdRoute: typeof AdminBadgesBadgeIdRoute
 }
 
 declare module '@tanstack/react-router' {
