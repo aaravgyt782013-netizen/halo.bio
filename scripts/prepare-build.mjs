@@ -51,37 +51,28 @@ dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
 );
 
-// Keep the upload controls consistent with the 10MB media limit.
-dashboard = dashboard.replace(
-  'Upload Background Video (Up to 1MB)',
-  'Upload Background Video (Up to 10MB)',
-);
-dashboard = dashboard.replace(
-  'Supports uploaded videos up to 1MB with high-performance',
-  'Supports uploaded videos up to 10MB with high-performance',
-);
-dashboard = dashboard.replace(
-  'file.size > 1 * 1024 * 1024',
-  'file.size > 10 * 1024 * 1024',
-);
-dashboard = dashboard.replace(
-  'toast.error("Video exceeds 1MB limit")',
-  'toast.error("Video exceeds 10MB limit")',
-);
+dashboard = dashboard.replace('Upload Background Video (Up to 1MB)', 'Upload Background Video (Up to 10MB)');
+dashboard = dashboard.replace('Supports uploaded videos up to 1MB with high-performance', 'Supports uploaded videos up to 10MB with high-performance');
+dashboard = dashboard.replace('file.size > 1 * 1024 * 1024', 'file.size > 10 * 1024 * 1024');
+dashboard = dashboard.replace('toast.error("Video exceeds 1MB limit")', 'toast.error("Video exceeds 10MB limit")');
 
-// Explicit section labels keep the previously available background/card controls visible.
 dashboard = dashboard.replace(
   '<span className="label-text">Background Wallpaper</span>',
   '<div className="flex items-center justify-between gap-2"><span className="label-text">Background Info</span><span className="text-[10px] text-muted-foreground">Wallpaper, image, or video</span></div>',
 );
-dashboard = dashboard.replace(
-  '              {/* Glass styling controls */}',
-  '              {/* Card Info / Glass styling controls */}',
-);
+dashboard = dashboard.replace('              {/* Glass styling controls */}', '              {/* Card Info / Glass styling controls */}');
 dashboard = dashboard.replace(
   '<div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0">',
   '<div className="rounded-xl border border-border/80 bg-secondary/30 p-3.5 sm:p-4 space-y-4 w-full min-w-0"><div className="flex items-center justify-between gap-2"><span className="label-text">Card Info</span><span className="text-[10px] text-muted-foreground">Opacity, radius, and blur</span></div>',
 );
+
+// Use the Spider Wensors brand in the share dialog instead of the old Halo wording.
+dashboard = dashboard.replace('Share your Halo page', 'Share your Wensors page');
+dashboard = dashboard.replace('Your Halo builder:', 'Your Wensors builder:');
+dashboard = dashboard.replace('copy your link.', 'copy your Wensors profile link.');
+dashboard = dashboard.replace('Builder — Halo bio page', 'Builder — Spider Wensors');
+dashboard = dashboard.replace('Edit links, background, glass styling and music for your Halo bio page', 'Edit links, background, glass styling and music for your Spider Wensors profile');
+dashboard = dashboard.replace('Your Halo builder:', 'Your Wensors builder:');
 
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
 
@@ -99,10 +90,7 @@ server = server.replace(
   'if (file.type.startsWith("video/") && file.size > 1 * 1024 * 1024) {\n              return jsonResponse({ error: "Video exceeds 1MB limit" }, 413);\n            }',
   'if ((file.type.startsWith("video/") || file.type.startsWith("image/")) && file.size > 10 * 1024 * 1024) {\n              return jsonResponse({ error: "Image/video exceeds 10MB limit" }, 413);\n            }',
 );
-server = server.replace(
-  'MEDIA UPLOAD ROUTE (Supports videos up to 1MB and custom icons)',
-  'MEDIA UPLOAD ROUTE (Supports images/videos up to 10MB and custom icons)',
-);
+server = server.replace('MEDIA UPLOAD ROUTE (Supports videos up to 1MB and custom icons)', 'MEDIA UPLOAD ROUTE (Supports images/videos up to 10MB and custom icons)');
 fs.writeFileSync(serverPath, server, "utf8");
 
 const badgeEditorPath = path.join(root, "src/routes/admin-badges/$badgeId.tsx");
@@ -143,12 +131,19 @@ badgeEditor = badgeEditor.replace(
 );
 fs.writeFileSync(badgeEditorPath, badgeEditor, "utf8");
 
+// Make badge cards explicitly navigate on tap/click. This avoids mobile tap issues with the Link wrapper.
 const badgeListPath = path.join(root, "src/routes/admin-badges.tsx");
 let badgeList = fs.readFileSync(badgeListPath, "utf8");
 badgeList = badgeList.replace(
   '  saved.forEach((b) => map.set(b.id, b));\n  return [...map.values()];',
   '  const deleted = new Set(saved.filter((b) => (b as ProfileBadge & { deleted?: boolean }).deleted).map((b) => b.id));\n  deleted.forEach((id) => map.delete(id));\n  saved.filter((b) => !(b as ProfileBadge & { deleted?: boolean }).deleted).forEach((b) => map.set(b.id, b));\n  return [...map.values()];',
 );
+const badgeCardOpen = 'onClick={() => navigate({ to: "/admin-badges/$badgeId", params: { badgeId: badge.id } })}';
+badgeList = badgeList.replace(
+  '<Link key={badge.id} to="/admin-badges/$badgeId" params={{ badgeId: badge.id }} className="group rounded-2xl',
+  `<button key={badge.id} type="button" ${badgeCardOpen} className="group w-full text-left rounded-2xl`,
+);
+badgeList = badgeList.replace('</Link>)}</div></main></div>;', '</button>)}</div></main></div>;');
 fs.writeFileSync(badgeListPath, badgeList, "utf8");
 
 const publicBadgesPath = path.join(root, "src/routes/badges.tsx");
@@ -159,4 +154,4 @@ publicBadges = publicBadges.replace(
 );
 fs.writeFileSync(publicBadgesPath, publicBadges, "utf8");
 
-console.log("Spider Wensors build preparation complete (themes, 10MB media validation, restored background/card sections, badge deletion)");
+console.log("Spider Wensors build preparation complete (themes, 10MB media validation, restored background/card sections, badge deletion, mobile badge navigation, Wensors share branding)");
