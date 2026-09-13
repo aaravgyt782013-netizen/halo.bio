@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Profile } from "@/lib/bio";
+import { useAuth, useMyProfile } from "@/hooks/useAuth";
 import { BadgesEditor } from "@/components/BadgesEditor";
 
-export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
+export function DashboardBadgesPortal() {
+  const { user } = useAuth();
+  const { profile } = useMyProfile(user?.id);
   const [mount, setMount] = useState<HTMLElement | null>(null);
   const [button, setButton] = useState<HTMLButtonElement | null>(null);
   const [active, setActive] = useState(false);
@@ -13,7 +15,6 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
     let tabBar: HTMLElement | null = null;
     let content: HTMLDivElement | null = null;
     let badgeButton: HTMLButtonElement | null = null;
-    let originals: HTMLElement[] = [];
     const boundTabs = new Set<Element>();
 
     const findTabBar = () => Array.from(document.querySelectorAll("button")).find((el) => {
@@ -23,14 +24,14 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
 
     const show = () => {
       setActive(true);
-      originals.forEach((el) => { el.style.display = "none"; });
+      Array.from(content?.parentElement?.children ?? []).filter((el) => el !== tabBar && el !== content).forEach((el) => (el as HTMLElement).style.display = "none");
       content?.classList.remove("hidden");
       badgeButton?.classList.add("bg-card", "text-foreground", "shadow-sm");
       badgeButton?.classList.remove("text-muted-foreground");
     };
     const hide = () => {
       setActive(false);
-      originals.forEach((el) => { el.style.display = ""; });
+      Array.from(content?.parentElement?.children ?? []).filter((el) => el !== tabBar && el !== content).forEach((el) => (el as HTMLElement).style.display = "");
       content?.classList.add("hidden");
       badgeButton?.classList.remove("bg-card", "text-foreground", "shadow-sm");
       badgeButton?.classList.add("text-muted-foreground");
@@ -59,14 +60,13 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
         parent.appendChild(content);
         setMount(content);
       }
-      originals = Array.from(parent.children).filter((el) => el !== tabBar && el !== content) as HTMLElement[];
       Array.from(tabBar.querySelectorAll("button")).filter((x) => x !== badgeButton).forEach((x) => {
         if (!boundTabs.has(x)) { x.addEventListener("click", hide); boundTabs.add(x); }
       });
     };
 
     ensure();
-    const observer = new MutationObserver(() => ensure());
+    const observer = new MutationObserver(ensure);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
@@ -79,6 +79,6 @@ export function DashboardBadgesPortal({ profile }: { profile: Profile }) {
     };
   }, []);
 
-  if (!mount || !button) return null;
+  if (!mount || !button || !profile) return null;
   return createPortal(active ? <BadgesEditor profile={profile} /> : null, mount);
 }
