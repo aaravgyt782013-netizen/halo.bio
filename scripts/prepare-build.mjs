@@ -61,7 +61,7 @@ if (!dashboard.includes("<DashboardBadgesPortal profile={profile} />")) {
   const returnIndex = dashboard.lastIndexOf("\n  return", dashboard.length);
   if (dashboardStart >= 0 && returnIndex > dashboardStart) {
     dashboard = dashboard.slice(0, returnIndex) + "\n  const badgePortal = <DashboardBadgesPortal profile={profile} />;" + dashboard.slice(returnIndex);
-    dashboard = dashboard.replace("\n  return", "\n  return (\n    <>\n      {badgePortal}\n", 1);
+    dashboard = dashboard.replace("\n  return (", "\n  return (\n    <>\n      {badgePortal}\n", 1);
     const endMarker = "\n  );\n}\n";
     const endIndex = dashboard.lastIndexOf(endMarker);
     if (endIndex >= 0) dashboard = dashboard.slice(0, endIndex) + "\n    </>" + dashboard.slice(endIndex);
