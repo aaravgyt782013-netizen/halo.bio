@@ -95,44 +95,6 @@ server = server.replace(
 server = server.replace('MEDIA UPLOAD ROUTE (Supports videos up to 1MB and custom icons)', 'MEDIA UPLOAD ROUTE (Supports images/videos up to 10MB and custom icons)');
 fs.writeFileSync(serverPath, server, "utf8");
 
-const badgeEditorPath = path.join(root, "src/routes/admin-badges/$badgeId.tsx");
-let badgeEditor = fs.readFileSync(badgeEditorPath, "utf8");
-badgeEditor = badgeEditor.replace(
-  'import { ArrowLeft, Award, Check, Loader2, Save, Search } from "lucide-react";',
-  'import { ArrowLeft, Award, Check, Loader2, Save, Search, Trash2 } from "lucide-react";',
-);
-badgeEditor = badgeEditor.replace(
-  '  saved.forEach((badge) => map.set(badge.id, badge));\n  return [...map.values()];',
-  '  const deleted = new Set(saved.filter((badge) => (badge as ProfileBadge & { deleted?: boolean }).deleted).map((badge) => badge.id));\n  deleted.forEach((id) => map.delete(id));\n  saved.filter((badge) => !(badge as ProfileBadge & { deleted?: boolean }).deleted).forEach((badge) => map.set(badge.id, badge));\n  return [...map.values()];',
-);
-const deleteFn = `
-  const deleteBadge = async () => {
-    if (!user || !owner || !badge) return;
-    if (!window.confirm(\`Delete the badge "\${badge.name}"? It will be removed from every player.\`)) return;
-    setSaving(true);
-    try {
-      const definitions = mergeDefinitions(readDefinitions(owner.social_links)).filter((item) => item.id !== badge.id);
-      const tombstone = { ...badge, deleted: true } as ProfileBadge & { deleted: boolean };
-      await adminMutateProfile(owner.id, { social_links: definitionLinks(owner.social_links, [...definitions, tombstone]) });
-      await Promise.all(profiles.map((profile) => {
-        const current = extractBadges(profile.social_links);
-        if (!current.some((item) => item.id === badge.id)) return Promise.resolve();
-        return adminMutateProfile(profile.id, { social_links: mergeBadges(profile.social_links, current.filter((item) => item.id !== badge.id)) });
-      }));
-      toast.success(\`Deleted \${badge.name} from all players\`);
-      navigate({ to: "/admin-badges" });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not delete badge");
-    } finally { setSaving(false); }
-  };
-`;
-badgeEditor = badgeEditor.replace('  const togglePlayer = async (profile: Profile) => {', deleteFn + '\n  const togglePlayer = async (profile: Profile) => {');
-badgeEditor = badgeEditor.replace(
-  '<button type="button" onClick={() => void saveBadge()} disabled={saving} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button>',
-  '<div className="flex items-center gap-2"><button type="button" onClick={() => void deleteBadge()} disabled={saving} className="btn-ghost border border-red-500/30 text-red-300"><Trash2 className="h-4 w-4" /> Delete</button><button type="button" onClick={() => void saveBadge()} disabled={saving} className="btn-primary"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save"}</button></div>',
-);
-fs.writeFileSync(badgeEditorPath, badgeEditor, "utf8");
-
 const publicBadgesPath = path.join(root, "src/routes/badges.tsx");
 let publicBadges = fs.readFileSync(publicBadgesPath, "utf8");
 publicBadges = publicBadges.replace(
