@@ -34,6 +34,7 @@ if (themeStart >= 0) {
   { name: "Black & White", bgType: "color" as const, bgValue: "#0a0a0a", accent: "#f8fafc", opacity: 0.82, blur: 16, radius: 18 },
   { name: "Red & Blue", bgType: "color" as const, bgValue: "#090b17", accent: "#3b82f6", opacity: 0.74, blur: 24, radius: 26 },
   { name: "Card Mode", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
+  { name: "Background Typewriter", bgType: "color" as const, bgValue: "#090d16", accent: "#6366f1", opacity: 0.68, blur: 24, radius: 24 },
 ];`;
     dashboard = dashboard.slice(0, themeStart) + themes + dashboard.slice(themeEnd + 2);
   }
@@ -42,14 +43,31 @@ if (themeStart >= 0) {
 dashboard = dashboard.replace(
   /const applyTheme = \(preset: \(typeof PRESET_THEMES\)\[number\]\) => \{[\s\S]*?\n  \};/,
   `const applyTheme = (preset: (typeof PRESET_THEMES)[number]) => {
-    patch({ accent_color: preset.accent, card_opacity: preset.opacity, card_blur: preset.blur, card_radius: preset.radius, background_type: preset.bgType, background_value: preset.bgValue });
-    toast.success(\`Applied \${preset.name} theme!\`);
+    const presentation = preset.name === "Background Typewriter" ? "background" : "card";
+    patch({ profile_layout: presentation, accent_color: preset.accent, card_opacity: preset.opacity, card_blur: preset.blur, card_radius: preset.radius, background_type: preset.bgType, background_value: preset.bgValue } as any);
+    toast.success(presentation === "background" ? "Background Typewriter mode enabled!" : \`Applied \${preset.name} theme!\`);
   };`,
 );
 
+// Persist the presentation mode so the selected theme survives refreshes and
+// appears on the public profile, not just in the local editor preview.
 dashboard = dashboard.replace(
   '          enter_text: profile.enter_text,',
-  '          enter_text: profile.enter_text,',
+  '          enter_text: profile.enter_text,\n          profile_layout: (profile as any).profile_layout || "card",',
 );
+
+// Add the existing badge showcase editor to the real dashboard React tree. It
+// then upgrades the four-tab bar to five tabs and inserts Badges after Media & FX.
+if (!dashboard.includes('DashboardBadgesPortal')) {
+  dashboard = dashboard.replace(
+    'import { SocialLinksEditor } from "@/components/SocialLinksEditor";',
+    'import { SocialLinksEditor } from "@/components/SocialLinksEditor";\nimport { DashboardBadgesPortal } from "@/components/DashboardBadgesPortal";',
+  );
+  dashboard = dashboard.replace(
+    '          {/* Media & effects tab */}',
+    '          <DashboardBadgesPortal profile={profile} />\n\n          {/* Media & effects tab */}',
+  );
+}
+
 fs.writeFileSync(dashboardPath, dashboard, "utf8");
-console.log("Spider Wensors build preparation complete (safe source-only transform)");
+console.log("Spider Wensors build preparation complete (themes + dashboard badges)");
